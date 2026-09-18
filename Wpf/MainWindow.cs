@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -303,7 +304,96 @@ namespace KillWind.Wpf
             highlighted.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
             itemStyle.Triggers.Add(highlighted);
             combo.ItemContainerStyle = itemStyle;
+            combo.Template = DarkComboTemplate();
             return combo;
+        }
+
+        private static ControlTemplate DarkComboTemplate()
+        {
+            var template = new ControlTemplate(typeof(ComboBox));
+            var root = new FrameworkElementFactory(typeof(Grid));
+            var outer = new FrameworkElementFactory(typeof(Border));
+            outer.SetBinding(Border.BackgroundProperty, TemplateBinding("Background"));
+            outer.SetBinding(Border.BorderBrushProperty, TemplateBinding("BorderBrush"));
+            outer.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+            outer.SetValue(Border.CornerRadiusProperty, new CornerRadius(2));
+            root.AppendChild(outer);
+
+            var selected = new FrameworkElementFactory(typeof(ContentPresenter));
+            selected.SetBinding(ContentPresenter.ContentProperty, TemplateBinding("SelectionBoxItem"));
+            selected.SetBinding(ContentPresenter.ContentTemplateProperty, TemplateBinding("SelectionBoxItemTemplate"));
+            selected.SetBinding(TextElement.ForegroundProperty, TemplateBinding("Foreground"));
+            selected.SetValue(ContentPresenter.MarginProperty, new Thickness(8, 0, 32, 0));
+            selected.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            selected.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Left);
+            selected.SetValue(UIElement.IsHitTestVisibleProperty, false);
+            root.AppendChild(selected);
+
+            var toggle = new FrameworkElementFactory(typeof(ToggleButton));
+            toggle.Name = "PART_ToggleButton";
+            toggle.SetBinding(ToggleButton.IsCheckedProperty, new Binding("IsDropDownOpen") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent), Mode = BindingMode.TwoWay });
+            toggle.SetValue(Grid.HorizontalAlignmentProperty, HorizontalAlignment.Right);
+            toggle.SetValue(FrameworkElement.WidthProperty, 28.0);
+            toggle.SetValue(FrameworkElement.HeightProperty, Double.NaN);
+            toggle.SetValue(ToggleButton.BackgroundProperty, InputBrush);
+            toggle.SetValue(ToggleButton.BorderThicknessProperty, new Thickness(0));
+            toggle.SetValue(ToggleButton.FocusableProperty, false);
+            toggle.SetValue(Control.TemplateProperty, DarkToggleTemplate());
+            var arrow = new FrameworkElementFactory(typeof(TextBlock));
+            arrow.SetValue(TextBlock.TextProperty, "▼");
+            arrow.SetValue(TextBlock.FontSizeProperty, 9.0);
+            arrow.SetValue(TextBlock.ForegroundProperty, MutedBrush);
+            arrow.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            arrow.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+            toggle.AppendChild(arrow);
+            root.AppendChild(toggle);
+
+            var popup = new FrameworkElementFactory(typeof(Popup));
+            popup.Name = "PART_Popup";
+            popup.SetBinding(Popup.IsOpenProperty, new Binding("IsDropDownOpen") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent), Mode = BindingMode.TwoWay });
+            popup.SetBinding(Popup.PlacementTargetProperty, new Binding { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
+            popup.SetValue(Popup.PlacementProperty, PlacementMode.Bottom);
+            popup.SetValue(Popup.StaysOpenProperty, false);
+            popup.SetValue(Popup.AllowsTransparencyProperty, true);
+            popup.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 2, 0, 0));
+            var popupBorder = new FrameworkElementFactory(typeof(Border));
+            popupBorder.SetValue(Border.BackgroundProperty, InputBrush);
+            popupBorder.SetValue(Border.BorderBrushProperty, LineBrush);
+            popupBorder.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+            popupBorder.SetBinding(FrameworkElement.MinWidthProperty, new Binding("ActualWidth") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
+            var scroll = new FrameworkElementFactory(typeof(ScrollViewer));
+            scroll.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Auto);
+            scroll.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
+            scroll.SetValue(FrameworkElement.MaxHeightProperty, 280.0);
+            var itemsPresenter = new FrameworkElementFactory(typeof(ItemsPresenter));
+            scroll.AppendChild(itemsPresenter);
+            popupBorder.AppendChild(scroll);
+            popup.AppendChild(popupBorder);
+            root.AppendChild(popup);
+            template.VisualTree = root;
+            return template;
+        }
+
+        private static ControlTemplate DarkToggleTemplate()
+        {
+            var template = new ControlTemplate(typeof(ToggleButton));
+            var border = new FrameworkElementFactory(typeof(Border));
+            border.SetBinding(Border.BackgroundProperty, TemplateBinding("Background"));
+            border.SetBinding(Border.BorderBrushProperty, TemplateBinding("BorderBrush"));
+            border.SetBinding(Border.BorderThicknessProperty, TemplateBinding("BorderThickness"));
+            var content = new FrameworkElementFactory(typeof(ContentPresenter));
+            content.SetBinding(ContentPresenter.ContentProperty, TemplateBinding("Content"));
+            content.SetBinding(TextElement.ForegroundProperty, TemplateBinding("Foreground"));
+            content.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            content.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            border.AppendChild(content);
+            template.VisualTree = border;
+            return template;
+        }
+
+        private static Binding TemplateBinding(string path)
+        {
+            return new Binding(path) { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent), Mode = BindingMode.OneWay };
         }
 
         private void UpdateScanInputState()
