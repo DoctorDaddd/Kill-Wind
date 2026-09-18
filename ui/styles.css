@@ -26,13 +26,14 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 .app-shell { width: 100%; height: 100vh; min-width: 1060px; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--chrome-deep); }
 .app-header { position: relative; border-bottom: 1px solid #0c0f12; background: var(--chrome); box-shadow: 0 2px 8px rgba(0, 0, 0, .38); }
-.title-strip { height: 50px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #1b2025; }
+.title-strip { height: 50px; display: flex; align-items: center; padding: 0 8px 0 14px; background: #1b2025; -webkit-app-region: drag; user-select: none; }
 .brand { display: flex; align-items: center; gap: 9px; }
 .brand-mark { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid #527d7f; border-radius: 4px; background: #183137; color: var(--cyan); }
 .brand-mark svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.8; }
 .brand strong { display: block; color: #f0f2f4; font-size: 15px; font-weight: 650; letter-spacing: .04em; }
 .brand span:not(.brand-mark) { display: block; color: var(--muted); font-size: 10px; }
-.target-status { display: flex; align-items: center; gap: 7px; color: var(--muted); }
+.target-status { display: flex; align-items: center; gap: 7px; margin-left: auto; margin-right: 9px; color: var(--muted); -webkit-app-region: no-drag; }
+.window-controls { display: flex; align-self: stretch; -webkit-app-region: no-drag; }.window-controls button { width: 42px; height: 32px; align-self: center; padding: 0; border: 0; color: #aeb8c1; background: transparent; font-size: 17px; line-height: 1; }.window-controls button:hover { color: #fff; background: #303941; }.window-controls .window-close:hover { background: #a33e48; color: #fff; }
 .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
 .status-dot.connected { background: var(--green); box-shadow: 0 0 7px rgba(114, 197, 159, .55); }
 .status-dot.scanning { background: var(--gold); box-shadow: 0 0 7px rgba(224, 183, 93, .55); }

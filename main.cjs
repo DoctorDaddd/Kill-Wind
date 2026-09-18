@@ -34,7 +34,7 @@ function send(channel, payload) {
 function createWindow() {
   windowRef = new BrowserWindow({
     width: 1380, height: 900, minWidth: 1060, minHeight: 700,
-    backgroundColor: '#070b12', icon,
+    backgroundColor: '#111418', icon, frame: false,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
   });
   windowRef.removeMenu();
@@ -54,6 +54,9 @@ function setupServices() {
   });
   ipcMain.handle('process:list', async () => processService.list({ taskbarOnly: true }));
   ipcMain.handle('app:quit', () => { app.quit(); return true; });
+  ipcMain.handle('window:minimize', () => { windowRef?.minimize(); return true; });
+  ipcMain.handle('window:maximize-toggle', () => { if (windowRef?.isMaximized()) windowRef.unmaximize(); else windowRef?.maximize(); return windowRef?.isMaximized() || false; });
+  ipcMain.handle('window:close', () => { windowRef?.close(); return true; });
   ipcMain.handle('process:attach', async (_event, processInfo) => {
     const attached = await processService.attach(processInfo);
     scanSession = null;
