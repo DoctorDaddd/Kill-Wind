@@ -1,0 +1,17 @@
+{
+  "name": "universal-game-editor",
+  "productName": "Universal Game Editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline single-player process and memory editor for Windows",
+  "main": "main.cjs",
+  "scripts": {
+    "build:native": "node scripts/build-native.cjs",
+    "test": "npm run build:native && node --test tests",
+    "start": "npm run build:native && electron .",
+    "package:local": "node scripts/build-native.cjs && node scripts/package-local.cjs"
+  },
+  "devDependencies": {
+    "electron": "^44.3.0"
+  }
+}

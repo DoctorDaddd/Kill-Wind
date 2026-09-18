@@ -1,0 +1,9 @@
+node_modules/
+native/MemoryBridge.exe
+MemoryTestGame/MemoryTestGame.exe
+Profiles/
+Logs/
+CrashLogs/
+*.tmp
+release/
+runtime/

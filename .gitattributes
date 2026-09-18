@@ -1,0 +1,2 @@
+*.cs text eol=crlf
+*.cjs text eol=lf
