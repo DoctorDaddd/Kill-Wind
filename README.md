@@ -14,7 +14,9 @@ Windows-only local editor for offline single-player process inspection. This rep
 - WPF native desktop shell with debugger-style layout and local EXE packaging
 - Unknown Initial Value scan with changed/unchanged/increased/decreased filtering
 - Byte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, and Double scanning
+- UTF-8 String and hexadecimal Byte Array exact scanning
 - Scan history with undo of the previous filter
+- Dark themed ComboBox, DataGrid, ScrollBar, and internal panel scrolling
 - A small `MemoryTestGame.exe` used by integration tests
 
 The primary UI is a native WPF desktop executable. The existing Electron shell remains available as a fallback and for compatibility checks; it is not required by the WPF EXE. Core scanning and native process access remain separate from the UI shell.

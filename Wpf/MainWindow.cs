@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -76,6 +77,16 @@ namespace KillWind.Wpf
         private void BuildUi()
         {
             var root = new Grid();
+            root.Resources.Add(typeof(ScrollBar), DarkScrollBarStyle());
+            root.Resources.Add(typeof(Thumb), DarkThumbStyle());
+            root.Resources.Add(typeof(RepeatButton), DarkRepeatButtonStyle());
+            root.Resources[SystemColors.ScrollBarBrushKey] = BrushFrom("#171D23");
+            root.Resources[SystemColors.ScrollBarColorKey] = Color.FromRgb(23, 29, 35);
+            root.Resources[SystemColors.ControlBrushKey] = BrushFrom("#242C34");
+            root.Resources[SystemColors.ControlDarkBrushKey] = BrushFrom("#12171C");
+            root.Resources[SystemColors.ControlDarkDarkBrushKey] = BrushFrom("#0D1115");
+            root.Resources[SystemColors.ControlLightBrushKey] = BrushFrom("#35404A");
+            root.Resources[SystemColors.ControlLightLightBrushKey] = BrushFrom("#3F4B56");
             root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
             root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
             root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(52) });
@@ -209,11 +220,12 @@ namespace KillWind.Wpf
         {
             var stack = new StackPanel { Margin = new Thickness(8) };
             scanValue = Input("精确扫描时输入当前数值"); stack.Children.Add(Labelled("数值", scanValue));
-            typeCombo = DarkCombo(new[] { "Byte", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64", "Float", "Double" }, 3); stack.Children.Add(Labelled("数据类型", typeCombo));
+            typeCombo = DarkCombo(new[] { "Byte", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64", "Float", "Double", "String", "ByteArray" }, 3); stack.Children.Add(Labelled("数据类型", typeCombo));
             initialCombo = DarkCombo(new[] { "精确数值", "未知初始值" }, 0); stack.Children.Add(Labelled("首次扫描", initialCombo));
             conditionCombo = DarkCombo(new[] { "精确数值", "已改变", "未改变", "增加", "减少" }, 0); stack.Children.Add(Labelled("再次扫描条件", conditionCombo));
             initialCombo.SelectionChanged += (sender, args) => UpdateScanInputState();
             conditionCombo.SelectionChanged += (sender, args) => UpdateScanInputState();
+            typeCombo.SelectionChanged += (sender, args) => UpdateScanInputState();
             var row = new StackPanel { Orientation = Orientation.Horizontal }; row.Children.Add(ToolButton("首次扫描", async () => await FirstScanAsync(), true)); row.Children.Add(ToolButton("再次扫描", async () => await NextScanAsync())); stack.Children.Add(row);
             var row2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) }; row2.Children.Add(ToolButton("新建扫描", NewScan)); row2.Children.Add(ToolButton("撤销筛选", UndoScan)); row2.Children.Add(ToolButton("取消", CancelScan)); stack.Children.Add(row2);
             progress = new ProgressBar { Height = 3, Minimum = 0, Maximum = 100, Margin = new Thickness(0, 9, 0, 3), Foreground = AccentBrush }; stack.Children.Add(progress);
@@ -396,14 +408,64 @@ namespace KillWind.Wpf
             return new Binding(path) { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent), Mode = BindingMode.OneWay };
         }
 
+        private static Style DarkScrollBarStyle()
+        {
+            var style = new Style(typeof(ScrollBar));
+            style.Setters.Add(new Setter(Control.BackgroundProperty, BrushFrom("#171D23")));
+            style.Setters.Add(new Setter(Control.ForegroundProperty, BrushFrom("#566673")));
+            style.Setters.Add(new Setter(Control.BorderBrushProperty, BrushFrom("#2D3943")));
+            style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
+            style.Setters.Add(new Setter(ScrollBar.WidthProperty, 10.0));
+            style.Setters.Add(new Setter(ScrollBar.HeightProperty, 10.0));
+            var vertical = new Trigger { Property = ScrollBar.OrientationProperty, Value = Orientation.Vertical };
+            vertical.Setters.Add(new Setter(ScrollBar.WidthProperty, 10.0));
+            vertical.Setters.Add(new Setter(ScrollBar.HeightProperty, Double.NaN));
+            var horizontal = new Trigger { Property = ScrollBar.OrientationProperty, Value = Orientation.Horizontal };
+            horizontal.Setters.Add(new Setter(ScrollBar.WidthProperty, Double.NaN));
+            horizontal.Setters.Add(new Setter(ScrollBar.HeightProperty, 10.0));
+            style.Triggers.Add(vertical);
+            style.Triggers.Add(horizontal);
+            style.Resources[SystemColors.ScrollBarBrushKey] = BrushFrom("#171D23");
+            style.Resources[SystemColors.ControlBrushKey] = BrushFrom("#242C34");
+            style.Resources[SystemColors.ControlDarkBrushKey] = BrushFrom("#12171C");
+            style.Resources[SystemColors.ControlLightBrushKey] = BrushFrom("#35404A");
+            return style;
+        }
+
+        private static Style DarkThumbStyle()
+        {
+            var style = new Style(typeof(Thumb));
+            style.Setters.Add(new Setter(Control.BackgroundProperty, BrushFrom("#566673")));
+            style.Setters.Add(new Setter(Control.BorderBrushProperty, BrushFrom("#6B7D8B")));
+            style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
+            style.Setters.Add(new Setter(FrameworkElement.MinHeightProperty, 28.0));
+            style.Setters.Add(new Setter(FrameworkElement.MinWidthProperty, 28.0));
+            var hover = new Trigger { Property = Thumb.IsMouseOverProperty, Value = true };
+            hover.Setters.Add(new Setter(Control.BackgroundProperty, AccentBrush));
+            hover.Setters.Add(new Setter(Control.BorderBrushProperty, BrushFrom("#8DE0DB")));
+            style.Triggers.Add(hover);
+            return style;
+        }
+
+        private static Style DarkRepeatButtonStyle()
+        {
+            var style = new Style(typeof(RepeatButton));
+            style.Setters.Add(new Setter(Control.BackgroundProperty, BrushFrom("#242C34")));
+            style.Setters.Add(new Setter(Control.ForegroundProperty, MutedBrush));
+            style.Setters.Add(new Setter(Control.BorderBrushProperty, BrushFrom("#2D3943")));
+            style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
+            return style;
+        }
+
         private void UpdateScanInputState()
         {
-            if (scanValue == null || initialCombo == null || conditionCombo == null) return;
+            if (scanValue == null || typeCombo == null || initialCombo == null || conditionCombo == null) return;
             bool firstScan = scanHistory.Count == 0;
             bool needsValue = firstScan ? initialCombo.SelectedIndex == (int)ScanInitialMode.Exact : conditionCombo.SelectedIndex == (int)ScanCondition.Exact;
             scanValue.IsEnabled = needsValue;
             scanValue.Opacity = needsValue ? 1.0 : 0.45;
-            scanValue.ToolTip = needsValue ? "输入当前数值" : "当前扫描条件不需要输入数值";
+            string hint = SelectedType() == ScanDataType.ByteArray ? "输入十六进制字节，例如：48 8B 05" : (SelectedType() == ScanDataType.String ? "输入 UTF-8 字符串" : "输入当前数值");
+            scanValue.ToolTip = needsValue ? hint : "当前扫描条件不需要输入数值";
         }
 
         private async Task RefreshProcessesAsync()
@@ -464,7 +526,10 @@ namespace KillWind.Wpf
             if (attached == null) { Message("请先连接目标进程。"); return; }
             ScanDataType type = SelectedType();
             if ((ScanInitialMode)initialCombo.SelectedIndex == ScanInitialMode.Unknown)
+            {
+                if (type == ScanDataType.String || type == ScanDataType.ByteArray) { Message("String 和 ByteArray 需要输入精确内容。"); return; }
                 await RunScan(async token => await scanner.FirstUnknownAsync(attached, regions, type, new Progress<int>(value => progress.Value = value), token), "未知初始值扫描完成", true);
+            }
             else
                 await RunScan(async token => await scanner.FirstExactAsync(attached, regions, type, scanValue.Text, new Progress<int>(value => progress.Value = value), token), "首次扫描完成", true);
         }
@@ -472,7 +537,10 @@ namespace KillWind.Wpf
         private async Task NextScanAsync()
         {
             if (attached == null || scanResults.Count == 0) { Message("请先完成首次扫描。"); return; }
-            await RunScan(async token => await scanner.FilterAsync(attached, scanResults, SelectedType(), (ScanCondition)conditionCombo.SelectedIndex, scanValue.Text, new Progress<int>(value => progress.Value = value), token), "再次扫描完成", false);
+            ScanCondition condition = (ScanCondition)conditionCombo.SelectedIndex;
+            ScanDataType type = SelectedType();
+            if ((type == ScanDataType.String || type == ScanDataType.ByteArray) && (condition == ScanCondition.Increased || condition == ScanCondition.Decreased)) { Message("String 和 ByteArray 只支持精确、已改变和未改变筛选。"); return; }
+            await RunScan(async token => await scanner.FilterAsync(attached, scanResults, type, condition, scanValue.Text, new Progress<int>(value => progress.Value = value), token), "再次扫描完成", false);
         }
 
         private async Task ScreenEditAsync()
@@ -550,7 +618,7 @@ namespace KillWind.Wpf
                 ProfileRecord record = profileStore.Load(name);
                 addresses.Clear();
                 foreach (ProfileAddress saved in record.addresses)
-                    addresses.Add(new AddressEntry { Description = saved.description, Address = saved.address, CurrentValue = saved.currentValue, NewValue = saved.newValue, Type = saved.type, Frozen = saved.frozen });
+                    addresses.Add(new AddressEntry { Description = saved.description, Address = saved.address, CurrentValue = saved.currentValue, NewValue = saved.newValue, Type = saved.type, Size = saved.size, Frozen = saved.frozen });
                 profileName.Text = record.gameName;
                 addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; UpdateFreezeTimer();
                 Log("成功", "Profile 已加载：" + record.gameName + "，地址 " + addresses.Count + " 项");
@@ -573,7 +641,7 @@ namespace KillWind.Wpf
         private void AddSelectedAddresses()
         {
             foreach (ScanResult result in resultsGrid.SelectedItems)
-                if (!addresses.Any(item => item.Address.Equals(result.Address, StringComparison.OrdinalIgnoreCase))) addresses.Add(new AddressEntry { Description = "未命名", Address = result.Address, CurrentValue = result.Value, NewValue = result.Value, Type = result.Type });
+                if (!addresses.Any(item => item.Address.Equals(result.Address, StringComparison.OrdinalIgnoreCase))) addresses.Add(new AddressEntry { Description = "未命名", Address = result.Address, CurrentValue = result.Value, NewValue = result.Value, Type = result.Type, Size = result.RawValue == null ? 0 : result.RawValue.Length });
             addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("信息", "已添加 " + resultsGrid.SelectedItems.Count + " 个地址");
         }
 
@@ -590,7 +658,7 @@ namespace KillWind.Wpf
             {
                 try
                 {
-                    byte[] data = await bridge.ReadAsync(attached.pid, entry.AddressValue, DataWidth(entry.Type));
+                    byte[] data = await bridge.ReadAsync(attached.pid, entry.AddressValue, DataWidth(entry.Type, entry.Size));
                     entry.CurrentValue = DecodeDisplay(entry.Type, data);
                 }
                 catch (Exception error)
@@ -615,11 +683,12 @@ namespace KillWind.Wpf
         }
 
         private ScanDataType SelectedType() { return (ScanDataType)typeCombo.SelectedIndex; }
-        private static int DataWidth(string type)
+        private static int DataWidth(string type, int size)
         {
             if (type == "Byte") return 1;
             if (type == "Int16" || type == "UInt16") return 2;
             if (type == "Int64" || type == "UInt64" || type == "Double") return 8;
+            if (type == "String" || type == "ByteArray") return size;
             return 4;
         }
 
@@ -633,7 +702,9 @@ namespace KillWind.Wpf
             if (type == "Int64") return BitConverter.GetBytes(Int64.Parse(text, CultureInfo.InvariantCulture));
             if (type == "UInt64") return BitConverter.GetBytes(UInt64.Parse(text, CultureInfo.InvariantCulture));
             if (type == "Float") return BitConverter.GetBytes(Single.Parse(text, CultureInfo.InvariantCulture));
-            return BitConverter.GetBytes(Double.Parse(text, CultureInfo.InvariantCulture));
+            if (type == "Double") return BitConverter.GetBytes(Double.Parse(text, CultureInfo.InvariantCulture));
+            if (type == "String") return Encoding.UTF8.GetBytes(text ?? "");
+            return ParseByteArray(text);
         }
 
         private static string DecodeDisplay(string type, byte[] bytes)
@@ -646,8 +717,30 @@ namespace KillWind.Wpf
             if (type == "Int64") return BitConverter.ToInt64(bytes, 0).ToString(CultureInfo.InvariantCulture);
             if (type == "UInt64") return BitConverter.ToUInt64(bytes, 0).ToString(CultureInfo.InvariantCulture);
             if (type == "Float") return BitConverter.ToSingle(bytes, 0).ToString("R", CultureInfo.InvariantCulture);
-            return BitConverter.ToDouble(bytes, 0).ToString("R", CultureInfo.InvariantCulture);
+            if (type == "Double") return BitConverter.ToDouble(bytes, 0).ToString("R", CultureInfo.InvariantCulture);
+            if (type == "String") return Encoding.UTF8.GetString(bytes);
+            return FormatByteArray(bytes);
         }
+
+        private static byte[] ParseByteArray(string input)
+        {
+            string normalized = (input ?? "").Replace(",", " ").Replace("-", " ").Trim();
+            if (normalized.Length == 0) throw new FormatException("请输入十六进制字节，例如：48 8B 05。");
+            string[] parts = normalized.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            var bytes = new List<byte>();
+            if (parts.Length == 1 && parts[0].Length > 2)
+            {
+                if ((parts[0].Length & 1) != 0) throw new FormatException("十六进制字节长度必须是偶数。");
+                for (int index = 0; index < parts[0].Length; index += 2) bytes.Add(Byte.Parse(parts[0].Substring(index, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                foreach (string part in parts) bytes.Add(Byte.Parse(part, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+            }
+            return bytes.ToArray();
+        }
+
+        private static string FormatByteArray(byte[] bytes) { return String.Join(" ", bytes.Select(item => item.ToString("X2", CultureInfo.InvariantCulture)).ToArray()); }
         private void Log(string level, string message) { if (logBox == null) return; logBox.AppendText(DateTime.Now.ToString("HH:mm:ss") + "  [" + level + "]  " + message + Environment.NewLine); logBox.ScrollToEnd(); }
         private void Message(string message) { MessageBox.Show(this, message, "KillWind", MessageBoxButton.OK, MessageBoxImage.Information); }
         private static SolidColorBrush BrushFrom(string value) { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(value)); }

@@ -40,6 +40,7 @@ namespace KillWind.Wpf
                     currentValue = entry.CurrentValue,
                     newValue = entry.NewValue,
                     type = entry.Type,
+                    size = entry.Size,
                     frozen = entry.Frozen,
                 }).ToArray(),
                 savedAt = DateTime.UtcNow.ToString("o"),
@@ -92,6 +93,7 @@ namespace KillWind.Wpf
         public string currentValue { get; set; }
         public string newValue { get; set; }
         public string type { get; set; }
+        public int size { get; set; }
         public bool frozen { get; set; }
     }
 }

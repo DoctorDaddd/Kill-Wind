@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
 
 namespace KillWind.Wpf
 {
@@ -21,7 +22,7 @@ namespace KillWind.Wpf
             var results = new List<ScanResult>();
             long total = regions.Sum(region => Math.Max(0, region.size));
             long scanned = 0;
-            int width = Width(type);
+            int width = wanted.Raw.Length;
             foreach (MemoryRegion region in regions)
             {
                 token.ThrowIfCancellationRequested();
@@ -35,7 +36,7 @@ namespace KillWind.Wpf
                     int scanLimit = (int)Math.Min((long)ChunkSize, region.size - offset);
                     for (int index = 0; index + width <= bytes.Length && index < scanLimit; index++)
                     {
-                        DataValue value = Decode(bytes, index, type);
+                        DataValue value = Decode(bytes, index, type, width);
                         if (BytesEqual(value.Raw, wanted.Raw)) results.Add(CreateResult(region.Base, region.Base + (ulong)offset + (ulong)index, type, value));
                     }
                     scanned += Math.Min((long)ChunkSize, region.size - offset); progress.Report(Percent(scanned, total));
@@ -46,6 +47,7 @@ namespace KillWind.Wpf
 
         public async Task<List<ScanResult>> FirstUnknownAsync(ProcessInfo process, IList<MemoryRegion> regions, ScanDataType type, IProgress<int> progress, CancellationToken token)
         {
+            if (type == ScanDataType.String || type == ScanDataType.ByteArray) throw new ArgumentException("String 和 Byte Array 需要先输入精确内容，不能使用未知初始值。");
             var results = new List<ScanResult>();
             long total = regions.Sum(region => Math.Max(0, region.size));
             long scanned = 0;
@@ -63,7 +65,7 @@ namespace KillWind.Wpf
                     int scanLimit = (int)Math.Min((long)ChunkSize, region.size - offset);
                     for (int index = 0; index + width <= bytes.Length && index < scanLimit; index += width)
                     {
-                        DataValue value = Decode(bytes, index, type);
+                        DataValue value = Decode(bytes, index, type, width);
                         results.Add(CreateResult(region.Base, region.Base + (ulong)offset + (ulong)index, type, value));
                     }
                     scanned += Math.Min((long)ChunkSize, region.size - offset); progress.Report(Percent(scanned, total));
@@ -75,7 +77,7 @@ namespace KillWind.Wpf
         public async Task<List<ScanResult>> FilterAsync(ProcessInfo process, IList<ScanResult> previous, ScanDataType type, ScanCondition condition, string input, IProgress<int> progress, CancellationToken token)
         {
             DataValue wanted = condition == ScanCondition.Exact ? ParseValue(type, input) : null;
-            int width = Width(type);
+            int width = wanted == null ? (previous.Count == 0 ? Width(type) : previous[0].RawValue.Length) : wanted.Raw.Length;
             var batches = new Dictionary<string, List<ScanResult>>();
             foreach (ScanResult result in previous)
             {
@@ -96,7 +98,7 @@ namespace KillWind.Wpf
                 foreach (ScanResult old in batch)
                 {
                     int offset = checked((int)(old.AddressValue - start));
-                    DataValue current = Decode(bytes, offset, type);
+                    DataValue current = Decode(bytes, offset, type, width);
                     bool keep = condition == ScanCondition.Exact ? BytesEqual(current.Raw, wanted.Raw) : Matches(condition, current.Number, old.NumericValue, current.Raw, old.RawValue);
                     if (keep) filtered.Add(CreateResult(old.RegionBase, old.AddressValue, type, current));
                     done++;
@@ -135,6 +137,8 @@ namespace KillWind.Wpf
                 case ScanDataType.Int64:
                 case ScanDataType.UInt64:
                 case ScanDataType.Double: return 8;
+                case ScanDataType.String:
+                case ScanDataType.ByteArray: return 0;
                 default: return 4;
             }
         }
@@ -189,11 +193,22 @@ namespace KillWind.Wpf
                 float value; if (!Single.TryParse(input, NumberStyles.Float, format, out value)) throw new ArgumentException("请输入有效的 Float 数值。");
                 return new DataValue { Number = value, Display = value.ToString("R", format), Raw = BitConverter.GetBytes(value) };
             }
-            double doubleValue; if (!Double.TryParse(input, NumberStyles.Float, format, out doubleValue)) throw new ArgumentException("请输入有效的 Double 数值。");
-            return new DataValue { Number = doubleValue, Display = doubleValue.ToString("R", format), Raw = BitConverter.GetBytes(doubleValue) };
+            if (type == ScanDataType.Double)
+            {
+                double doubleValue; if (!Double.TryParse(input, NumberStyles.Float, format, out doubleValue)) throw new ArgumentException("请输入有效的 Double 数值。");
+                return new DataValue { Number = doubleValue, Display = doubleValue.ToString("R", format), Raw = BitConverter.GetBytes(doubleValue) };
+            }
+            if (type == ScanDataType.String)
+            {
+                if (String.IsNullOrEmpty(input)) throw new ArgumentException("请输入要扫描的字符串。");
+                byte[] bytes = Encoding.UTF8.GetBytes(input);
+                return new DataValue { Display = input, Raw = bytes };
+            }
+            byte[] array = ParseByteArray(input);
+            return new DataValue { Display = FormatByteArray(array), Raw = array };
         }
 
-        private static DataValue Decode(byte[] bytes, int offset, ScanDataType type)
+        private static DataValue Decode(byte[] bytes, int offset, ScanDataType type, int width)
         {
             if (type == ScanDataType.Byte) { byte value = bytes[offset]; return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 1) }; }
             if (type == ScanDataType.Int16) { short value = BitConverter.ToInt16(bytes, offset); return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 2) }; }
@@ -203,7 +218,34 @@ namespace KillWind.Wpf
             if (type == ScanDataType.Int64) { long value = BitConverter.ToInt64(bytes, offset); return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 8) }; }
             if (type == ScanDataType.UInt64) { ulong value = BitConverter.ToUInt64(bytes, offset); return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 8) }; }
             if (type == ScanDataType.Float) { float value = BitConverter.ToSingle(bytes, offset); return new DataValue { Number = value, Display = value.ToString("R", CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 4) }; }
-            double doubleValue = BitConverter.ToDouble(bytes, offset); return new DataValue { Number = doubleValue, Display = doubleValue.ToString("R", CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 8) };
+            if (type == ScanDataType.Double) { double doubleValue = BitConverter.ToDouble(bytes, offset); return new DataValue { Number = doubleValue, Display = doubleValue.ToString("R", CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 8) }; }
+            byte[] raw = Slice(bytes, offset, width);
+            if (type == ScanDataType.String) return new DataValue { Display = Encoding.UTF8.GetString(raw), Raw = raw };
+            return new DataValue { Display = FormatByteArray(raw), Raw = raw };
+        }
+
+        private static byte[] ParseByteArray(string input)
+        {
+            string normalized = (input ?? "").Replace(",", " ").Replace("-", " ").Trim();
+            if (normalized.Length == 0) throw new ArgumentException("请输入十六进制字节，例如：48 8B 05。");
+            string[] parts = normalized.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            var bytes = new List<byte>();
+            if (parts.Length == 1 && parts[0].Length > 2)
+            {
+                if ((parts[0].Length & 1) != 0) throw new ArgumentException("十六进制字节长度必须是偶数。");
+                for (int index = 0; index < parts[0].Length; index += 2) bytes.Add(Byte.Parse(parts[0].Substring(index, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                foreach (string part in parts) bytes.Add(Byte.Parse(part, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+            }
+            if (bytes.Count == 0) throw new ArgumentException("请输入有效的十六进制字节。");
+            return bytes.ToArray();
+        }
+
+        private static string FormatByteArray(byte[] bytes)
+        {
+            return String.Join(" ", bytes.Select(item => item.ToString("X2", CultureInfo.InvariantCulture)).ToArray());
         }
 
         private static byte[] Slice(byte[] bytes, int offset, int length) { var result = new byte[length]; Buffer.BlockCopy(bytes, offset, result, 0, length); return result; }
