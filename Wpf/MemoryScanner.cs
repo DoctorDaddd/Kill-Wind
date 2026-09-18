@@ -44,6 +44,34 @@ namespace KillWind.Wpf
             return results;
         }
 
+        public async Task<List<ScanResult>> FirstUnknownAsync(ProcessInfo process, IList<MemoryRegion> regions, ScanDataType type, IProgress<int> progress, CancellationToken token)
+        {
+            var results = new List<ScanResult>();
+            long total = regions.Sum(region => Math.Max(0, region.size));
+            long scanned = 0;
+            int width = Width(type);
+            foreach (MemoryRegion region in regions)
+            {
+                token.ThrowIfCancellationRequested();
+                for (long offset = 0; offset < region.size; offset += ChunkSize)
+                {
+                    token.ThrowIfCancellationRequested();
+                    int requested = (int)Math.Min((long)ChunkSize + width - 1, region.size - offset);
+                    byte[] bytes;
+                    try { bytes = await bridge.ReadAsync(process.pid, region.Base + (ulong)offset, requested); }
+                    catch (Exception error) { Debug.WriteLine("未知扫描区域读取失败：" + error.Message); scanned += Math.Min((long)ChunkSize, region.size - offset); progress.Report(Percent(scanned, total)); continue; }
+                    int scanLimit = (int)Math.Min((long)ChunkSize, region.size - offset);
+                    for (int index = 0; index + width <= bytes.Length && index < scanLimit; index += width)
+                    {
+                        DataValue value = Decode(bytes, index, type);
+                        results.Add(CreateResult(region.Base, region.Base + (ulong)offset + (ulong)index, type, value));
+                    }
+                    scanned += Math.Min((long)ChunkSize, region.size - offset); progress.Report(Percent(scanned, total));
+                }
+            }
+            return results;
+        }
+
         public async Task<List<ScanResult>> FilterAsync(ProcessInfo process, IList<ScanResult> previous, ScanDataType type, ScanCondition condition, string input, IProgress<int> progress, CancellationToken token)
         {
             DataValue wanted = condition == ScanCondition.Exact ? ParseValue(type, input) : null;
@@ -97,7 +125,19 @@ namespace KillWind.Wpf
 
         private static int Percent(long value, long total) { return total <= 0 ? 100 : (int)Math.Min(100, value * 100 / total); }
         private static int Percent(int value, int total) { return total <= 0 ? 100 : Math.Min(100, value * 100 / total); }
-        private static int Width(ScanDataType type) { return type == ScanDataType.Double ? 8 : 4; }
+        private static int Width(ScanDataType type)
+        {
+            switch (type)
+            {
+                case ScanDataType.Byte: return 1;
+                case ScanDataType.Int16:
+                case ScanDataType.UInt16: return 2;
+                case ScanDataType.Int64:
+                case ScanDataType.UInt64:
+                case ScanDataType.Double: return 8;
+                default: return 4;
+            }
+        }
 
         private sealed class DataValue
         {
@@ -109,9 +149,39 @@ namespace KillWind.Wpf
         private static DataValue ParseValue(ScanDataType type, string input)
         {
             NumberFormatInfo format = CultureInfo.InvariantCulture.NumberFormat;
+            if (type == ScanDataType.Byte)
+            {
+                byte value; if (!Byte.TryParse(input, NumberStyles.Integer, format, out value)) throw new ArgumentException("请输入有效的 Byte 数值。");
+                return new DataValue { Number = value, Display = value.ToString(format), Raw = new[] { value } };
+            }
+            if (type == ScanDataType.Int16)
+            {
+                short value; if (!Int16.TryParse(input, NumberStyles.Integer, format, out value)) throw new ArgumentException("请输入有效的 Int16 数值。");
+                return new DataValue { Number = value, Display = value.ToString(format), Raw = BitConverter.GetBytes(value) };
+            }
+            if (type == ScanDataType.UInt16)
+            {
+                ushort value; if (!UInt16.TryParse(input, NumberStyles.Integer, format, out value)) throw new ArgumentException("请输入有效的 UInt16 数值。");
+                return new DataValue { Number = value, Display = value.ToString(format), Raw = BitConverter.GetBytes(value) };
+            }
             if (type == ScanDataType.Int32)
             {
                 int value; if (!Int32.TryParse(input, NumberStyles.Integer, format, out value)) throw new ArgumentException("请输入有效的 Int32 数值。");
+                return new DataValue { Number = value, Display = value.ToString(format), Raw = BitConverter.GetBytes(value) };
+            }
+            if (type == ScanDataType.UInt32)
+            {
+                uint value; if (!UInt32.TryParse(input, NumberStyles.Integer, format, out value)) throw new ArgumentException("请输入有效的 UInt32 数值。");
+                return new DataValue { Number = value, Display = value.ToString(format), Raw = BitConverter.GetBytes(value) };
+            }
+            if (type == ScanDataType.Int64)
+            {
+                long value; if (!Int64.TryParse(input, NumberStyles.Integer, format, out value)) throw new ArgumentException("请输入有效的 Int64 数值。");
+                return new DataValue { Number = value, Display = value.ToString(format), Raw = BitConverter.GetBytes(value) };
+            }
+            if (type == ScanDataType.UInt64)
+            {
+                ulong value; if (!UInt64.TryParse(input, NumberStyles.Integer, format, out value)) throw new ArgumentException("请输入有效的 UInt64 数值。");
                 return new DataValue { Number = value, Display = value.ToString(format), Raw = BitConverter.GetBytes(value) };
             }
             if (type == ScanDataType.Float)
@@ -125,7 +195,13 @@ namespace KillWind.Wpf
 
         private static DataValue Decode(byte[] bytes, int offset, ScanDataType type)
         {
+            if (type == ScanDataType.Byte) { byte value = bytes[offset]; return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 1) }; }
+            if (type == ScanDataType.Int16) { short value = BitConverter.ToInt16(bytes, offset); return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 2) }; }
+            if (type == ScanDataType.UInt16) { ushort value = BitConverter.ToUInt16(bytes, offset); return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 2) }; }
             if (type == ScanDataType.Int32) { int value = BitConverter.ToInt32(bytes, offset); return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 4) }; }
+            if (type == ScanDataType.UInt32) { uint value = BitConverter.ToUInt32(bytes, offset); return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 4) }; }
+            if (type == ScanDataType.Int64) { long value = BitConverter.ToInt64(bytes, offset); return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 8) }; }
+            if (type == ScanDataType.UInt64) { ulong value = BitConverter.ToUInt64(bytes, offset); return new DataValue { Number = value, Display = value.ToString(CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 8) }; }
             if (type == ScanDataType.Float) { float value = BitConverter.ToSingle(bytes, offset); return new DataValue { Number = value, Display = value.ToString("R", CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 4) }; }
             double doubleValue = BitConverter.ToDouble(bytes, offset); return new DataValue { Number = doubleValue, Display = doubleValue.ToString("R", CultureInfo.InvariantCulture), Raw = Slice(bytes, offset, 8) };
         }

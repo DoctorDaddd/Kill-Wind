@@ -25,6 +25,7 @@ namespace KillWind.Wpf
         private readonly DispatcherTimer processWatchTimer;
         private ComboBox processCombo;
         private ComboBox typeCombo;
+        private ComboBox initialCombo;
         private ComboBox conditionCombo;
         private TextBox scanValue;
         private TextBox logBox;
@@ -41,6 +42,7 @@ namespace KillWind.Wpf
         private ProcessInfo attached;
         private MemoryRegion[] regions = new MemoryRegion[0];
         private List<ScanResult> scanResults = new List<ScanResult>();
+        private readonly List<List<ScanResult>> scanHistory = new List<List<ScanResult>>();
         private CancellationTokenSource scanCancellation;
 
         private static readonly Brush WindowBrush = BrushFrom("#111418");
@@ -204,11 +206,12 @@ namespace KillWind.Wpf
         private UIElement BuildScanner()
         {
             var stack = new StackPanel { Margin = new Thickness(8) };
-            scanValue = Input("输入当前数值"); stack.Children.Add(Labelled("数值", scanValue));
-            typeCombo = new ComboBox { ItemsSource = new[] { "Int32", "Float", "Double" }, SelectedIndex = 0, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("数据类型", typeCombo));
+            scanValue = Input("精确扫描时输入当前数值"); stack.Children.Add(Labelled("数值", scanValue));
+            typeCombo = new ComboBox { ItemsSource = new[] { "Byte", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64", "Float", "Double" }, SelectedIndex = 3, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("数据类型", typeCombo));
+            initialCombo = new ComboBox { ItemsSource = new[] { "精确数值", "未知初始值" }, SelectedIndex = 0, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("首次扫描", initialCombo));
             conditionCombo = new ComboBox { ItemsSource = new[] { "精确数值", "已改变", "未改变", "增加", "减少" }, SelectedIndex = 0, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("再次扫描条件", conditionCombo));
             var row = new StackPanel { Orientation = Orientation.Horizontal }; row.Children.Add(ToolButton("首次扫描", async () => await FirstScanAsync(), true)); row.Children.Add(ToolButton("再次扫描", async () => await NextScanAsync())); stack.Children.Add(row);
-            var row2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) }; row2.Children.Add(ToolButton("新建扫描", NewScan)); row2.Children.Add(ToolButton("取消", CancelScan)); stack.Children.Add(row2);
+            var row2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) }; row2.Children.Add(ToolButton("新建扫描", NewScan)); row2.Children.Add(ToolButton("撤销筛选", UndoScan)); row2.Children.Add(ToolButton("取消", CancelScan)); stack.Children.Add(row2);
             progress = new ProgressBar { Height = 3, Minimum = 0, Maximum = 100, Margin = new Thickness(0, 9, 0, 3), Foreground = AccentBrush }; stack.Children.Add(progress);
             scanCountText = new TextBlock { Text = "0 个结果", Foreground = MutedBrush }; stack.Children.Add(scanCountText); return stack;
         }
@@ -268,7 +271,7 @@ namespace KillWind.Wpf
 
         private void Detach()
         {
-            freezeTimer.Stop(); attached = null; regions = new MemoryRegion[0]; regionsGrid.ItemsSource = regions; scanResults.Clear(); resultsGrid.ItemsSource = scanResults; processText.Text = "未连接目标进程"; statusText.Text = "未连接"; Log("信息", "已断开进程");
+            freezeTimer.Stop(); attached = null; regions = new MemoryRegion[0]; regionsGrid.ItemsSource = regions; scanHistory.Clear(); scanResults = new List<ScanResult>(); resultsGrid.ItemsSource = scanResults; processText.Text = "未连接目标进程"; statusText.Text = "未连接"; Log("信息", "已断开进程");
         }
 
         private void ProcessWatchTimerOnTick(object sender, EventArgs args)
@@ -293,6 +296,7 @@ namespace KillWind.Wpf
             freezeTimer.Stop();
             attached = null;
             regions = new MemoryRegion[0];
+            scanHistory.Clear();
             scanResults = new List<ScanResult>();
             processCombo.SelectedItem = null;
             regionsGrid.ItemsSource = regions;
@@ -308,13 +312,17 @@ namespace KillWind.Wpf
         private async Task FirstScanAsync()
         {
             if (attached == null) { Message("请先连接目标进程。"); return; }
-            await RunScan(async token => await scanner.FirstExactAsync(attached, regions, SelectedType(), scanValue.Text, new Progress<int>(value => progress.Value = value), token), "首次扫描完成");
+            ScanDataType type = SelectedType();
+            if ((ScanInitialMode)initialCombo.SelectedIndex == ScanInitialMode.Unknown)
+                await RunScan(async token => await scanner.FirstUnknownAsync(attached, regions, type, new Progress<int>(value => progress.Value = value), token), "未知初始值扫描完成", true);
+            else
+                await RunScan(async token => await scanner.FirstExactAsync(attached, regions, type, scanValue.Text, new Progress<int>(value => progress.Value = value), token), "首次扫描完成", true);
         }
 
         private async Task NextScanAsync()
         {
             if (attached == null || scanResults.Count == 0) { Message("请先完成首次扫描。"); return; }
-            await RunScan(async token => await scanner.FilterAsync(attached, scanResults, SelectedType(), (ScanCondition)conditionCombo.SelectedIndex, scanValue.Text, new Progress<int>(value => progress.Value = value), token), "再次扫描完成");
+            await RunScan(async token => await scanner.FilterAsync(attached, scanResults, SelectedType(), (ScanCondition)conditionCombo.SelectedIndex, scanValue.Text, new Progress<int>(value => progress.Value = value), token), "再次扫描完成", false);
         }
 
         private async Task ScreenEditAsync()
@@ -333,6 +341,7 @@ namespace KillWind.Wpf
                 regions = await bridge.ListRegionsAsync(attached.pid);
                 List<ScanResult> matches = await scanner.FirstExactAsync(attached, regions, ScanDataType.Int32, current.ToString(CultureInfo.InvariantCulture), new Progress<int>(value => progress.Value = value), CancellationToken.None);
                 scanResults = matches;
+                scanHistory.Clear(); scanHistory.Add(scanResults);
                 resultsGrid.ItemsSource = scanResults;
                 scanCountText.Text = matches.Count.ToString("N0") + " 个结果";
                 if (matches.Count == 0) { Message("没有找到匹配的数值，请确认点击的数字和当前显示值。"); Log("警告", "屏幕取值没有匹配项。"); return; }
@@ -346,16 +355,26 @@ namespace KillWind.Wpf
             catch (Exception error) { Log("错误", "屏幕取值失败：" + error.Message); }
         }
 
-        private async Task RunScan(Func<CancellationToken, Task<List<ScanResult>>> operation, string completedMessage)
+        private async Task RunScan(Func<CancellationToken, Task<List<ScanResult>>> operation, string completedMessage, bool resetHistory)
         {
-            try { scanCancellation = new CancellationTokenSource(); statusText.Text = "扫描中"; progress.Value = 0; scanResults = await operation(scanCancellation.Token); resultsGrid.ItemsSource = scanResults; scanCountText.Text = scanResults.Count.ToString("N0") + " 个结果"; statusText.Text = "已连接 · 扫描完成"; Log("成功", completedMessage + "：" + scanResults.Count.ToString("N0") + " 个结果"); }
+            try { scanCancellation = new CancellationTokenSource(); statusText.Text = "扫描中"; progress.Value = 0; scanResults = await operation(scanCancellation.Token); if (resetHistory) scanHistory.Clear(); scanHistory.Add(scanResults); resultsGrid.ItemsSource = scanResults; scanCountText.Text = scanResults.Count.ToString("N0") + " 个结果"; statusText.Text = "已连接 · 扫描完成"; Log("成功", completedMessage + "：" + scanResults.Count.ToString("N0") + " 个结果"); }
             catch (OperationCanceledException) { Log("信息", "扫描已取消"); }
             catch (Exception error) { Log("错误", error.Message); }
             finally { scanCancellation = null; progress.Value = 0; }
         }
 
         private void CancelScan() { if (scanCancellation != null) scanCancellation.Cancel(); }
-        private void NewScan() { if (scanCancellation != null) scanCancellation.Cancel(); scanResults = new List<ScanResult>(); resultsGrid.ItemsSource = scanResults; scanCountText.Text = "0 个结果"; progress.Value = 0; Log("信息", "已新建扫描"); }
+        private void NewScan() { if (scanCancellation != null) scanCancellation.Cancel(); scanHistory.Clear(); scanResults = new List<ScanResult>(); resultsGrid.ItemsSource = scanResults; scanCountText.Text = "0 个结果"; progress.Value = 0; Log("信息", "已新建扫描"); }
+
+        private void UndoScan()
+        {
+            if (scanHistory.Count < 2) { Message("当前没有可撤销的筛选。"); return; }
+            scanHistory.RemoveAt(scanHistory.Count - 1);
+            scanResults = scanHistory[scanHistory.Count - 1];
+            resultsGrid.ItemsSource = scanResults;
+            scanCountText.Text = scanResults.Count.ToString("N0") + " 个结果";
+            Log("信息", "已撤销上一次筛选，恢复到 " + scanResults.Count.ToString("N0") + " 个结果。");
+        }
 
         private void SaveProfile()
         {
@@ -445,9 +464,39 @@ namespace KillWind.Wpf
         }
 
         private ScanDataType SelectedType() { return (ScanDataType)typeCombo.SelectedIndex; }
-        private static int DataWidth(string type) { return type == "Double" ? 8 : 4; }
-        private static byte[] Encode(string type, string text) { if (type == "Int32") return BitConverter.GetBytes(Int32.Parse(text, CultureInfo.InvariantCulture)); if (type == "Float") return BitConverter.GetBytes(Single.Parse(text, CultureInfo.InvariantCulture)); return BitConverter.GetBytes(Double.Parse(text, CultureInfo.InvariantCulture)); }
-        private static string DecodeDisplay(string type, byte[] bytes) { if (type == "Int32") return BitConverter.ToInt32(bytes, 0).ToString(CultureInfo.InvariantCulture); if (type == "Float") return BitConverter.ToSingle(bytes, 0).ToString("R", CultureInfo.InvariantCulture); return BitConverter.ToDouble(bytes, 0).ToString("R", CultureInfo.InvariantCulture); }
+        private static int DataWidth(string type)
+        {
+            if (type == "Byte") return 1;
+            if (type == "Int16" || type == "UInt16") return 2;
+            if (type == "Int64" || type == "UInt64" || type == "Double") return 8;
+            return 4;
+        }
+
+        private static byte[] Encode(string type, string text)
+        {
+            if (type == "Byte") return new[] { Byte.Parse(text, CultureInfo.InvariantCulture) };
+            if (type == "Int16") return BitConverter.GetBytes(Int16.Parse(text, CultureInfo.InvariantCulture));
+            if (type == "UInt16") return BitConverter.GetBytes(UInt16.Parse(text, CultureInfo.InvariantCulture));
+            if (type == "Int32") return BitConverter.GetBytes(Int32.Parse(text, CultureInfo.InvariantCulture));
+            if (type == "UInt32") return BitConverter.GetBytes(UInt32.Parse(text, CultureInfo.InvariantCulture));
+            if (type == "Int64") return BitConverter.GetBytes(Int64.Parse(text, CultureInfo.InvariantCulture));
+            if (type == "UInt64") return BitConverter.GetBytes(UInt64.Parse(text, CultureInfo.InvariantCulture));
+            if (type == "Float") return BitConverter.GetBytes(Single.Parse(text, CultureInfo.InvariantCulture));
+            return BitConverter.GetBytes(Double.Parse(text, CultureInfo.InvariantCulture));
+        }
+
+        private static string DecodeDisplay(string type, byte[] bytes)
+        {
+            if (type == "Byte") return bytes[0].ToString(CultureInfo.InvariantCulture);
+            if (type == "Int16") return BitConverter.ToInt16(bytes, 0).ToString(CultureInfo.InvariantCulture);
+            if (type == "UInt16") return BitConverter.ToUInt16(bytes, 0).ToString(CultureInfo.InvariantCulture);
+            if (type == "Int32") return BitConverter.ToInt32(bytes, 0).ToString(CultureInfo.InvariantCulture);
+            if (type == "UInt32") return BitConverter.ToUInt32(bytes, 0).ToString(CultureInfo.InvariantCulture);
+            if (type == "Int64") return BitConverter.ToInt64(bytes, 0).ToString(CultureInfo.InvariantCulture);
+            if (type == "UInt64") return BitConverter.ToUInt64(bytes, 0).ToString(CultureInfo.InvariantCulture);
+            if (type == "Float") return BitConverter.ToSingle(bytes, 0).ToString("R", CultureInfo.InvariantCulture);
+            return BitConverter.ToDouble(bytes, 0).ToString("R", CultureInfo.InvariantCulture);
+        }
         private void Log(string level, string message) { if (logBox == null) return; logBox.AppendText(DateTime.Now.ToString("HH:mm:ss") + "  [" + level + "]  " + message + Environment.NewLine); logBox.ScrollToEnd(); }
         private void Message(string message) { MessageBox.Show(this, message, "KillWind", MessageBoxButton.OK, MessageBoxImage.Information); }
         private static SolidColorBrush BrushFrom(string value) { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(value)); }

@@ -26,7 +26,8 @@ namespace KillWind.Wpf
         public ulong Base { get { return Convert.ToUInt64(baseAddress.Substring(2), 16); } }
     }
 
-    public enum ScanDataType { Int32, Float, Double }
+    public enum ScanDataType { Byte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double }
+    public enum ScanInitialMode { Exact, Unknown }
     public enum ScanCondition { Exact, Changed, Unchanged, Increased, Decreased }
 
     public sealed class ScanResult
