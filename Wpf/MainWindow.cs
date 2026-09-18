@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -142,7 +143,7 @@ namespace KillWind.Wpf
             toolbar.Children.Add(ToolButton("测试程序", LaunchTestGame));
             toolbar.Children.Add(new Separator { Width = 12, Opacity = .3 });
             toolbar.Children.Add(new TextBlock { Text = "目标进程", Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) });
-            processCombo = new ComboBox { Width = 390, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush, DisplayMemberPath = "DisplayName", Margin = new Thickness(0, 0, 6, 0) };
+            processCombo = DarkCombo(new string[0], 0); processCombo.Width = 390; processCombo.DisplayMemberPath = "DisplayName"; processCombo.Margin = new Thickness(0, 0, 6, 0);
             toolbar.Children.Add(processCombo);
             toolbar.Children.Add(ToolButton("连接", async () => await AttachAsync(), true));
             toolbar.Children.Add(ToolButton("断开", Detach, false));
@@ -182,7 +183,7 @@ namespace KillWind.Wpf
         {
             var stack = new StackPanel { Margin = new Thickness(8) };
             profileName = Input("例如：我的 RPG Maker 游戏"); stack.Children.Add(Labelled("配置名称", profileName));
-            profileCombo = new ComboBox { Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("已保存配置", profileCombo));
+            profileCombo = DarkCombo(new string[0], 0); stack.Children.Add(Labelled("已保存配置", profileCombo));
             var row = new StackPanel { Orientation = Orientation.Horizontal };
             row.Children.Add(ToolButton("保存配置", SaveProfile, true));
             row.Children.Add(ToolButton("加载配置", LoadProfile));
@@ -207,9 +208,11 @@ namespace KillWind.Wpf
         {
             var stack = new StackPanel { Margin = new Thickness(8) };
             scanValue = Input("精确扫描时输入当前数值"); stack.Children.Add(Labelled("数值", scanValue));
-            typeCombo = new ComboBox { ItemsSource = new[] { "Byte", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64", "Float", "Double" }, SelectedIndex = 3, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("数据类型", typeCombo));
-            initialCombo = new ComboBox { ItemsSource = new[] { "精确数值", "未知初始值" }, SelectedIndex = 0, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("首次扫描", initialCombo));
-            conditionCombo = new ComboBox { ItemsSource = new[] { "精确数值", "已改变", "未改变", "增加", "减少" }, SelectedIndex = 0, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("再次扫描条件", conditionCombo));
+            typeCombo = DarkCombo(new[] { "Byte", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64", "Float", "Double" }, 3); stack.Children.Add(Labelled("数据类型", typeCombo));
+            initialCombo = DarkCombo(new[] { "精确数值", "未知初始值" }, 0); stack.Children.Add(Labelled("首次扫描", initialCombo));
+            conditionCombo = DarkCombo(new[] { "精确数值", "已改变", "未改变", "增加", "减少" }, 0); stack.Children.Add(Labelled("再次扫描条件", conditionCombo));
+            initialCombo.SelectionChanged += (sender, args) => UpdateScanInputState();
+            conditionCombo.SelectionChanged += (sender, args) => UpdateScanInputState();
             var row = new StackPanel { Orientation = Orientation.Horizontal }; row.Children.Add(ToolButton("首次扫描", async () => await FirstScanAsync(), true)); row.Children.Add(ToolButton("再次扫描", async () => await NextScanAsync())); stack.Children.Add(row);
             var row2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) }; row2.Children.Add(ToolButton("新建扫描", NewScan)); row2.Children.Add(ToolButton("撤销筛选", UndoScan)); row2.Children.Add(ToolButton("取消", CancelScan)); stack.Children.Add(row2);
             progress = new ProgressBar { Height = 3, Minimum = 0, Maximum = 100, Margin = new Thickness(0, 9, 0, 3), Foreground = AccentBrush }; stack.Children.Add(progress);
@@ -233,7 +236,7 @@ namespace KillWind.Wpf
         {
             var grid = new Grid { Margin = new Thickness(0, 0, 0, 0) }; grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(155) });
             addressesGrid = CreateGrid(); addressesGrid.IsReadOnly = false; addressesGrid.SelectionMode = DataGridSelectionMode.Single; addressesGrid.Columns.Add(Column("描述", "Description", 100)); addressesGrid.Columns.Add(Column("地址", "Address", 130)); addressesGrid.Columns.Add(Column("当前值", "CurrentValue", 80)); addressesGrid.Columns.Add(Column("新值", "NewValue", 80)); addressesGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "冻", Binding = new Binding("Frozen") }); addressesGrid.CellEditEnding += (sender, args) => Dispatcher.BeginInvoke(new Action(UpdateFreezeTimer)); grid.Children.Add(Panel("地址列表", addressesGrid));
-            var help = new StackPanel { Margin = new Thickness(10) }; help.Children.Add(new TextBlock { Text = "操作提示", Foreground = AccentBrush, FontWeight = FontWeights.Bold }); help.Children.Add(new TextBlock { Text = "连接进程 → 输入数值 → 首次扫描\n改变游戏数值 → 选择条件 → 再次扫描\n选中结果后添加到地址列表。", Foreground = MutedBrush, Margin = new Thickness(0, 8, 0, 0) }); var helpPanel = Panel("帮助", help); Grid.SetRow(helpPanel, 1); grid.Children.Add(helpPanel); Grid.SetColumn(grid, 2); return grid;
+            var help = new StackPanel { Margin = new Thickness(10) }; help.Children.Add(new TextBlock { Text = "操作提示", Foreground = AccentBrush, FontWeight = FontWeights.Bold }); help.Children.Add(new TextBlock { Text = "精确扫描：输入当前值后首次扫描。\n未知初始值：首次扫描无需输入，回到游戏改变数值后筛选。\n选中结果后添加到地址列表，双击新值单元格可编辑。", Foreground = MutedBrush, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap }); var helpPanel = Panel("帮助", help); Grid.SetRow(helpPanel, 1); grid.Children.Add(helpPanel); Grid.SetColumn(grid, 2); return grid;
         }
 
         private UIElement BuildLogPanel()
@@ -251,10 +254,61 @@ namespace KillWind.Wpf
             var dock = new DockPanel(); var header = new TextBlock { Text = title, Foreground = TextBrush, Background = HeaderBrush, Padding = new Thickness(9, 7, 9, 6), FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header); dock.Children.Add(content); return new Border { Background = PanelBrush, BorderBrush = LineBrush, BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 5), Child = dock };
         }
 
-        private static DataGrid CreateGrid() { return new DataGrid { AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = true, HeadersVisibility = DataGridHeadersVisibility.Column, Background = PanelBrush, Foreground = TextBrush, RowBackground = PanelBrush, AlternatingRowBackground = BrushFrom("#1D2329"), GridLinesVisibility = DataGridGridLinesVisibility.Horizontal, HorizontalGridLinesBrush = BrushFrom("#2C343C"), BorderThickness = new Thickness(0), SelectionUnit = DataGridSelectionUnit.FullRow }; }
+        private static DataGrid CreateGrid()
+        {
+            var grid = new DataGrid { AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = true, HeadersVisibility = DataGridHeadersVisibility.Column, Background = PanelBrush, Foreground = TextBrush, RowBackground = PanelBrush, AlternatingRowBackground = BrushFrom("#1D2329"), GridLinesVisibility = DataGridGridLinesVisibility.Horizontal, HorizontalGridLinesBrush = BrushFrom("#2C343C"), BorderThickness = new Thickness(0), SelectionUnit = DataGridSelectionUnit.FullRow, RowHeaderWidth = 0 };
+            var cellStyle = new Style(typeof(DataGridCell));
+            cellStyle.Setters.Add(new Setter(Control.BackgroundProperty, PanelBrush));
+            cellStyle.Setters.Add(new Setter(Control.ForegroundProperty, TextBrush));
+            cellStyle.Setters.Add(new Setter(Control.BorderBrushProperty, BrushFrom("#2C343C")));
+            var selectedCell = new Trigger { Property = DataGridCell.IsSelectedProperty, Value = true };
+            selectedCell.Setters.Add(new Setter(Control.BackgroundProperty, BrushFrom("#285F63")));
+            selectedCell.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
+            cellStyle.Triggers.Add(selectedCell);
+            var rowStyle = new Style(typeof(DataGridRow));
+            rowStyle.Setters.Add(new Setter(Control.BackgroundProperty, PanelBrush));
+            rowStyle.Setters.Add(new Setter(Control.ForegroundProperty, TextBrush));
+            var headerStyle = new Style(typeof(DataGridColumnHeader));
+            headerStyle.Setters.Add(new Setter(Control.BackgroundProperty, HeaderBrush));
+            headerStyle.Setters.Add(new Setter(Control.ForegroundProperty, TextBrush));
+            headerStyle.Setters.Add(new Setter(Control.BorderBrushProperty, LineBrush));
+            headerStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(7, 4, 7, 4)));
+            grid.Resources.Add(typeof(DataGridCell), cellStyle);
+            grid.Resources.Add(typeof(DataGridRow), rowStyle);
+            grid.Resources.Add(typeof(DataGridColumnHeader), headerStyle);
+            return grid;
+        }
         private static DataGridTextColumn Column(string header, string path, double width) { return new DataGridTextColumn { Header = header, Binding = new Binding(path), Width = width }; }
         private static TextBox Input(string hint) { return new TextBox { Height = 29, Text = "", ToolTip = hint, Background = InputBrush, Foreground = TextBrush, BorderBrush = LineBrush, Padding = new Thickness(7, 4, 7, 4) }; }
         private static StackPanel Labelled(string label, UIElement input) { var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 7) }; stack.Children.Add(new TextBlock { Text = label, Foreground = MutedBrush, FontSize = 11 }); stack.Children.Add(input); return stack; }
+
+        private static ComboBox DarkCombo(IEnumerable<string> items, int selectedIndex)
+        {
+            var combo = new ComboBox { ItemsSource = items, SelectedIndex = selectedIndex, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush, Padding = new Thickness(5, 0, 5, 0) };
+            combo.Resources[SystemColors.HighlightBrushKey] = BrushFrom("#285F63");
+            combo.Resources[SystemColors.HighlightTextBrushKey] = TextBrush;
+            var itemStyle = new Style(typeof(ComboBoxItem));
+            itemStyle.Setters.Add(new Setter(Control.BackgroundProperty, InputBrush));
+            itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, TextBrush));
+            itemStyle.Setters.Add(new Setter(Control.BorderBrushProperty, LineBrush));
+            itemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(7, 5, 7, 5)));
+            var highlighted = new Trigger { Property = ComboBoxItem.IsHighlightedProperty, Value = true };
+            highlighted.Setters.Add(new Setter(Control.BackgroundProperty, BrushFrom("#285F63")));
+            highlighted.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
+            itemStyle.Triggers.Add(highlighted);
+            combo.ItemContainerStyle = itemStyle;
+            return combo;
+        }
+
+        private void UpdateScanInputState()
+        {
+            if (scanValue == null || initialCombo == null || conditionCombo == null) return;
+            bool firstScan = scanHistory.Count == 0;
+            bool needsValue = firstScan ? initialCombo.SelectedIndex == (int)ScanInitialMode.Exact : conditionCombo.SelectedIndex == (int)ScanCondition.Exact;
+            scanValue.IsEnabled = needsValue;
+            scanValue.Opacity = needsValue ? 1.0 : 0.45;
+            scanValue.ToolTip = needsValue ? "输入当前数值" : "当前扫描条件不需要输入数值";
+        }
 
         private async Task RefreshProcessesAsync()
         {
@@ -357,14 +411,14 @@ namespace KillWind.Wpf
 
         private async Task RunScan(Func<CancellationToken, Task<List<ScanResult>>> operation, string completedMessage, bool resetHistory)
         {
-            try { scanCancellation = new CancellationTokenSource(); statusText.Text = "扫描中"; progress.Value = 0; scanResults = await operation(scanCancellation.Token); if (resetHistory) scanHistory.Clear(); scanHistory.Add(scanResults); resultsGrid.ItemsSource = scanResults; scanCountText.Text = scanResults.Count.ToString("N0") + " 个结果"; statusText.Text = "已连接 · 扫描完成"; Log("成功", completedMessage + "：" + scanResults.Count.ToString("N0") + " 个结果"); }
+            try { scanCancellation = new CancellationTokenSource(); statusText.Text = "扫描中"; progress.Value = 0; scanResults = await operation(scanCancellation.Token); if (resetHistory) scanHistory.Clear(); scanHistory.Add(scanResults); typeCombo.IsEnabled = false; initialCombo.IsEnabled = false; resultsGrid.ItemsSource = scanResults; scanCountText.Text = scanResults.Count.ToString("N0") + " 个结果"; statusText.Text = "已连接 · 扫描完成"; UpdateScanInputState(); Log("成功", completedMessage + "：" + scanResults.Count.ToString("N0") + " 个结果"); }
             catch (OperationCanceledException) { Log("信息", "扫描已取消"); }
             catch (Exception error) { Log("错误", error.Message); }
             finally { scanCancellation = null; progress.Value = 0; }
         }
 
         private void CancelScan() { if (scanCancellation != null) scanCancellation.Cancel(); }
-        private void NewScan() { if (scanCancellation != null) scanCancellation.Cancel(); scanHistory.Clear(); scanResults = new List<ScanResult>(); resultsGrid.ItemsSource = scanResults; scanCountText.Text = "0 个结果"; progress.Value = 0; Log("信息", "已新建扫描"); }
+        private void NewScan() { if (scanCancellation != null) scanCancellation.Cancel(); scanHistory.Clear(); scanResults = new List<ScanResult>(); typeCombo.IsEnabled = true; initialCombo.IsEnabled = true; resultsGrid.ItemsSource = scanResults; scanCountText.Text = "0 个结果"; progress.Value = 0; UpdateScanInputState(); Log("信息", "已新建扫描"); }
 
         private void UndoScan()
         {
@@ -373,6 +427,7 @@ namespace KillWind.Wpf
             scanResults = scanHistory[scanHistory.Count - 1];
             resultsGrid.ItemsSource = scanResults;
             scanCountText.Text = scanResults.Count.ToString("N0") + " 个结果";
+            UpdateScanInputState();
             Log("信息", "已撤销上一次筛选，恢复到 " + scanResults.Count.ToString("N0") + " 个结果。");
         }
 
