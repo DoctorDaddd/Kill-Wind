@@ -36,4 +36,5 @@ compile(path.join(testGame, 'MemoryTestGame.cs'), path.join(testGame, 'MemoryTes
   '/target:winexe', '/r:System.dll', '/r:System.Core.dll',
   '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll',
 ]);
+require('./build-icon.cjs');
 console.log('Native bridge and MemoryTestGame built.');

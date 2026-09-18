@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const projectRoot = path.resolve(__dirname, '..');
-const outputRoot = path.join(projectRoot, 'release', 'killwind');
+const outputRoot = path.resolve(process.env.KILLWIND_OUTPUT || path.join(projectRoot, 'release', 'killwind'));
 const appRoot = path.join(outputRoot, 'resources', 'app');
 const cachedRuntime = path.join(projectRoot, 'runtime', 'electron');
 const electronRuntime = path.join(projectRoot, 'node_modules', 'electron', 'dist');
@@ -27,7 +27,7 @@ for (const entry of fs.readdirSync(runtimeRoot, { withFileTypes: true })) {
 }
 
 const copy = (relativePath) => fs.cpSync(path.join(projectRoot, relativePath), path.join(appRoot, relativePath), { recursive: true });
-for (const relativePath of ['package.json', 'main.cjs', 'preload.cjs', 'Core', 'Infrastructure', 'Profiles', 'ui']) copy(relativePath);
+for (const relativePath of ['package.json', 'main.cjs', 'preload.cjs', 'Core', 'Infrastructure', 'Profiles', 'ui', 'assets']) copy(relativePath);
 fs.mkdirSync(path.join(appRoot, 'native'), { recursive: true });
 fs.copyFileSync(path.join(projectRoot, 'native', 'MemoryBridge.exe'), path.join(appRoot, 'native', 'MemoryBridge.exe'));
 fs.mkdirSync(path.join(appRoot, 'MemoryTestGame'), { recursive: true });

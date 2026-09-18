@@ -11,6 +11,8 @@ const { ProfileStore } = require('./Profiles/ProfileStore.cjs');
 const { Logger } = require('./Infrastructure/Logger.cjs');
 
 app.setName('killwind');
+app.setAppUserModelId('com.killwind.editor');
+const icon = path.join(__dirname, 'assets', 'killwind.ico');
 const bridge = new NativeMemoryBridge(path.join(__dirname, 'native', 'MemoryBridge.exe'));
 const processService = new ProcessService(bridge);
 const memory = new MemoryAccess(bridge, processService);
@@ -32,7 +34,7 @@ function send(channel, payload) {
 function createWindow() {
   windowRef = new BrowserWindow({
     width: 1380, height: 900, minWidth: 1060, minHeight: 700,
-    backgroundColor: '#0b1018',
+    backgroundColor: '#070b12', icon,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
   });
   windowRef.removeMenu();

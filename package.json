@@ -1,6 +1,6 @@
 {
-  "name": "universal-game-editor",
-  "productName": "Universal Game Editor",
+  "name": "killwind",
+  "productName": "KillWind",
   "version": "0.1.0",
   "private": true,
   "description": "Offline single-player process and memory editor for Windows",
