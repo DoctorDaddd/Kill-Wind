@@ -3,47 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>killwind · Universal Game Editor</title>
+  <title>KillWind · 离线游戏修改器</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">K</span><div><strong>killwind</strong><span>Universal Game Editor</span></div></div>
-    <nav><button class="nav-item active">Memory</button><button class="nav-item" disabled>Save Editor</button><button class="nav-item" disabled>Trainer</button><button class="nav-item" disabled>Settings</button></nav>
-    <div class="status-line"><span id="statusDot" class="status-dot disconnected"></span><span id="statusText">Disconnected</span></div>
+    <div class="brand"><span class="brand-mark">K</span><div><strong>KillWind</strong><span>离线游戏研究工具</span></div></div>
+    <nav aria-label="主导航"><button class="nav-item active">内存修改</button><button class="nav-item" disabled>存档编辑</button><button class="nav-item" disabled>Trainer</button><button class="nav-item" disabled>设置</button></nav>
+    <div class="status-line"><span id="statusDot" class="status-dot disconnected"></span><span id="statusText">未连接</span></div>
   </header>
 
   <main class="workspace">
     <section class="panel process-panel">
-      <div class="panel-title"><div><span class="eyebrow">TARGET PROCESS</span><h1>Process Attach</h1></div><div class="toolbar"><button id="screenEdit" class="button warning" disabled>Screen Edit Mode</button><button id="refreshProcesses" class="button secondary">Refresh</button><button id="launchTestGame" class="button secondary">Launch MemoryTestGame</button></div></div>
-      <div class="process-controls"><select id="processSelect" aria-label="选择目标进程"><option value="">Refreshing process list…</option></select><button id="attachProcess" class="button primary">Attach</button><button id="detachProcess" class="button danger" disabled>Detach</button></div>
-      <div class="process-meta"><div><span>Process</span><strong id="processName">—</strong></div><div><span>PID</span><strong id="processPid">—</strong></div><div><span>Architecture</span><strong id="processArch">—</strong></div><div><span>Memory</span><strong id="processMemory">—</strong></div><div><span>Started</span><strong id="processStarted">—</strong></div><div class="path-meta"><span>EXE Path</span><strong id="processPath">—</strong></div></div>
+      <div class="panel-title"><div><span class="eyebrow">目标进程</span><h1>连接游戏</h1></div><div class="toolbar"><button id="screenEdit" class="button warning" disabled>屏幕取值模式</button><button id="refreshProcesses" class="button secondary">刷新进程</button><button id="launchTestGame" class="button secondary">启动测试游戏</button></div></div>
+      <div class="process-controls"><select id="processSelect" aria-label="选择目标进程"><option value="">正在刷新进程列表…</option></select><button id="attachProcess" class="button primary">连接进程</button><button id="detachProcess" class="button danger" disabled>断开</button></div>
+      <div class="process-meta"><div><span>进程</span><strong id="processName">—</strong></div><div><span>PID</span><strong id="processPid">—</strong></div><div><span>架构</span><strong id="processArch">—</strong></div><div><span>内存</span><strong id="processMemory">—</strong></div><div><span>启动时间</span><strong id="processStarted">—</strong></div><div class="path-meta"><span>程序路径</span><strong id="processPath">—</strong></div></div>
     </section>
 
     <section class="panel scan-panel">
-      <div class="panel-title"><div><span class="eyebrow">MEMORY SCANNER</span><h2>Int32 Exact Value</h2></div><div class="scan-session"><span id="scanState">Idle</span><strong id="scanCount">0 results</strong></div></div>
-      <div class="scan-controls"><label>Value<input id="scanValue" type="number" step="1" placeholder="例如 100" /></label><label>Type<select disabled><option>Int32</option></select></label><label>Scan Type<select disabled><option>Exact Value</option></select></label><button id="firstScan" class="button primary" disabled>First Scan</button><button id="nextScan" class="button secondary" disabled>Next Scan</button><button id="cancelScan" class="button warning" disabled>Cancel</button><button id="newScan" class="button ghost">New Scan</button></div>
-      <div class="progress-wrap"><div id="scanProgress" class="progress-bar"></div></div><div class="progress-text"><span id="scanProgressText">Attach a process to begin.</span><span id="scanElapsed">—</span></div>
+      <div class="panel-title"><div><span class="eyebrow">内存扫描器</span><h2>Int32 精确数值</h2></div><div class="scan-session"><span id="scanState">空闲</span><strong id="scanCount">0 个结果</strong></div></div>
+      <div class="scan-controls"><label>当前数值<input id="scanValue" type="number" step="1" placeholder="例如 100" /></label><label>数据类型<select disabled><option>Int32</option></select></label><label>扫描方式<select disabled><option>精确数值</option></select></label><button id="firstScan" class="button primary" disabled>首次扫描</button><button id="nextScan" class="button secondary" disabled>再次扫描</button><button id="cancelScan" class="button warning" disabled>取消</button><button id="newScan" class="button ghost">新建扫描</button></div>
+      <div class="progress-wrap"><div id="scanProgress" class="progress-bar"></div></div><div class="progress-text"><span id="scanProgressText">请先连接目标进程。</span><span id="scanElapsed">—</span></div>
     </section>
 
     <section class="split-grid">
-      <section class="panel results-panel"><div class="panel-title compact"><div><span class="eyebrow">SCAN RESULTS</span><h2>Candidate Addresses</h2></div><button id="addSelected" class="button secondary" disabled>Add selected</button></div><div class="table-wrap"><table><thead><tr><th></th><th>Address</th><th>Value</th><th>Type</th><th>Region</th><th></th></tr></thead><tbody id="resultsBody"><tr><td colspan="6" class="empty">No scan results.</td></tr></tbody></table></div></section>
-      <section class="panel address-panel"><div class="panel-title compact"><div><span class="eyebrow">ADDRESS LIST</span><h2>Saved Variables</h2></div><button id="refreshAddresses" class="button ghost">Refresh</button></div><div class="table-wrap"><table><thead><tr><th>Description</th><th>Address</th><th>Current</th><th>New value</th><th>Freeze</th><th></th></tr></thead><tbody id="addressBody"><tr><td colspan="6" class="empty">Add a scan result.</td></tr></tbody></table></div></section>
+      <section class="panel results-panel"><div class="panel-title compact"><div><span class="eyebrow">扫描结果</span><h2>候选地址</h2></div><button id="addSelected" class="button secondary" disabled>添加选中项</button></div><div class="table-wrap"><table><thead><tr><th></th><th>地址</th><th>数值</th><th>类型</th><th>区域</th><th></th></tr></thead><tbody id="resultsBody"><tr><td colspan="6" class="empty">暂无扫描结果。</td></tr></tbody></table></div></section>
+      <section class="panel address-panel"><div class="panel-title compact"><div><span class="eyebrow">地址列表</span><h2>已保存变量</h2></div><button id="refreshAddresses" class="button ghost">刷新数值</button></div><div class="table-wrap"><table><thead><tr><th>描述</th><th>地址</th><th>当前值</th><th>新数值</th><th>冻结</th><th></th></tr></thead><tbody id="addressBody"><tr><td colspan="6" class="empty">请从扫描结果添加变量。</td></tr></tbody></table></div></section>
     </section>
 
     <section class="bottom-grid">
-      <section class="panel regions-panel"><div class="panel-title compact"><div><span class="eyebrow">VIRTUAL MEMORY</span><h2>Readable Regions</h2></div><span id="regionSummary" class="muted">0 regions</span></div><div class="table-wrap"><table><thead><tr><th>Base</th><th>Size</th><th>Protection</th><th>Type</th></tr></thead><tbody id="regionsBody"><tr><td colspan="4" class="empty">Attach a process to enumerate regions.</td></tr></tbody></table></div></section>
-      <section class="panel profile-panel"><div class="panel-title compact"><div><span class="eyebrow">PERSISTENCE</span><h2>Game Profile</h2></div></div><label>Profile name<input id="profileName" type="text" placeholder="例如 MemoryTestGame" /></label><div class="profile-actions"><button id="saveProfile" class="button primary" disabled>Save Profile</button><select id="profileSelect"><option value="">Saved profiles</option></select><button id="loadProfile" class="button secondary">Load</button></div><p class="hint">Schema v1 · address list is stored under the local profile directory.</p></section>
+      <section class="panel regions-panel"><div class="panel-title compact"><div><span class="eyebrow">虚拟内存</span><h2>可读取区域</h2></div><span id="regionSummary" class="muted">0 个区域</span></div><div class="table-wrap"><table><thead><tr><th>基址</th><th>大小</th><th>保护</th><th>类型</th></tr></thead><tbody id="regionsBody"><tr><td colspan="4" class="empty">连接进程后枚举内存区域。</td></tr></tbody></table></div></section>
+      <section class="panel profile-panel"><div class="panel-title compact"><div><span class="eyebrow">持久化</span><h2>游戏配置</h2></div></div><label>配置名称<input id="profileName" type="text" placeholder="例如 勇者传说" /></label><div class="profile-actions"><button id="saveProfile" class="button primary" disabled>保存配置</button><select id="profileSelect"><option value="">选择已保存配置</option></select><button id="loadProfile" class="button secondary">加载</button></div><p class="hint">配置版本 v1 · 地址列表保存在本机配置目录。</p></section>
     </section>
 
-    <section class="panel log-panel"><div class="panel-title compact"><div><span class="eyebrow">EVENT LOG</span><h2>Diagnostics</h2></div><span class="muted">Local only</span></div><div id="logList" class="log-list"></div></section>
+    <section class="panel log-panel"><div class="panel-title compact"><div><span class="eyebrow">事件日志</span><h2>诊断信息</h2></div><span class="muted">仅本地记录</span></div><div id="logList" class="log-list"></div></section>
   </main>
   <div id="screenEditModal" class="modal-backdrop" hidden>
     <section class="modal panel" role="dialog" aria-modal="true" aria-labelledby="screenEditTitle">
-      <div class="panel-title"><div><span class="eyebrow">SCREEN EDIT</span><h2 id="screenEditTitle">Edit clicked number</h2></div><button id="closeScreenEdit" class="button ghost">×</button></div>
-      <p id="screenEditHint" class="modal-hint">The click position is captured. Enter the visible number and the replacement value.</p>
-      <div class="modal-fields"><label>Current value<input id="screenCurrentValue" type="number" step="1" /></label><label>New value<input id="screenNewValue" type="number" step="1" /></label></div>
-      <div class="modal-actions"><button id="cancelScreenEdit" class="button secondary">Cancel</button><button id="applyScreenEdit" class="button primary">Scan and apply</button></div>
+      <div class="panel-title"><div><span class="eyebrow">屏幕取值</span><h2 id="screenEditTitle">修改画面上的数字</h2></div><button id="closeScreenEdit" class="button ghost" aria-label="关闭">×</button></div>
+      <p id="screenEditHint" class="modal-hint">已捕获点击位置。请输入画面上显示的当前整数和要替换的新数值。</p>
+      <div class="modal-fields"><label>画面当前值<input id="screenCurrentValue" type="number" step="1" /></label><label>替换为<input id="screenNewValue" type="number" step="1" /></label></div>
+      <div class="modal-actions"><button id="cancelScreenEdit" class="button secondary">取消</button><button id="applyScreenEdit" class="button primary">扫描并修改</button></div>
     </section>
   </div>
   <script src="app.js"></script>
