@@ -3,47 +3,94 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>KillWind · 离线游戏修改器</title>
+  <title>KillWind - 通用离线游戏修改器</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M11 8v24M12 20 28 8M12 20l17 12"/><path d="M22 10c6-4 10-1 12 2M23 18c6-3 10-1 13 2M22 27c5-2 8-1 11 1"/></svg></span><div><strong>KillWind</strong><span>离线游戏研究工具</span></div></div>
-    <nav aria-label="主导航"><button class="nav-item active">内存修改</button><button class="nav-item" disabled>存档编辑</button><button class="nav-item" disabled>Trainer</button><button class="nav-item" disabled>设置</button></nav>
-    <div class="status-line"><span id="statusDot" class="status-dot disconnected"></span><span id="statusText">未连接</span></div>
-  </header>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="title-strip">
+        <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M11 8v24M12 20 28 8M12 20l17 12"/><path d="M22 10c6-4 10-1 12 2M23 18c6-3 10-1 13 2M22 27c5-2 8-1 11 1"/></svg></span><div><strong>KillWind</strong><span>通用离线游戏修改器</span></div></div>
+        <div class="target-status"><span id="statusDot" class="status-dot disconnected"></span><span id="statusText">未连接目标进程</span></div>
+      </div>
+      <nav class="menu-bar" aria-label="主菜单"><button class="menu-item">文件</button><button class="menu-item">编辑</button><button class="menu-item">视图</button><button class="menu-item">工具</button><button class="menu-item">帮助</button><span class="menu-spacer"></span><span class="build-label">离线模式 · v0.1.0</span></nav>
+      <div class="main-toolbar">
+        <button id="refreshProcesses" class="tool-button" title="刷新进程"><span class="tool-icon">↻</span><span>刷新</span></button>
+        <button id="launchTestGame" class="tool-button" title="启动内置测试程序"><span class="tool-icon">▶</span><span>测试程序</span></button>
+        <span class="tool-separator"></span>
+        <label class="process-label">目标进程<select id="processSelect" aria-label="选择目标进程"><option value="">正在刷新进程列表…</option></select></label>
+        <button id="attachProcess" class="tool-button accent"><span class="tool-icon">⛓</span><span>连接</span></button>
+        <button id="detachProcess" class="tool-button" disabled><span class="tool-icon">⛓</span><span>断开</span></button>
+        <span class="tool-separator"></span>
+        <button id="screenEdit" class="tool-button warning" disabled><span class="tool-icon">⌖</span><span>屏幕取值</span></button>
+      </div>
+    </header>
 
-  <main class="workspace">
-    <section class="panel process-panel">
-      <div class="panel-title"><div><span class="eyebrow">目标进程</span><h1>连接游戏</h1></div><div class="toolbar"><button id="screenEdit" class="button warning" disabled>屏幕取值模式</button><button id="refreshProcesses" class="button secondary">刷新进程</button><button id="launchTestGame" class="button secondary">启动测试游戏</button></div></div>
-      <div class="process-controls"><select id="processSelect" aria-label="选择目标进程"><option value="">正在刷新进程列表…</option></select><button id="attachProcess" class="button primary">连接进程</button><button id="detachProcess" class="button danger" disabled>断开</button></div>
-      <div class="process-meta"><div><span>进程</span><strong id="processName">—</strong></div><div><span>PID</span><strong id="processPid">—</strong></div><div><span>架构</span><strong id="processArch">—</strong></div><div><span>内存</span><strong id="processMemory">—</strong></div><div><span>启动时间</span><strong id="processStarted">—</strong></div><div class="path-meta"><span>程序路径</span><strong id="processPath">—</strong></div></div>
-    </section>
+    <main class="workspace">
+      <aside class="left-column">
+        <section class="panel process-panel">
+          <div class="panel-heading"><span class="panel-glyph">▣</span><span>进程信息</span></div>
+          <div class="process-meta">
+            <div><span>进程</span><strong id="processName">—</strong></div><div><span>PID</span><strong id="processPid">—</strong></div><div><span>架构</span><strong id="processArch">—</strong></div><div><span>内存</span><strong id="processMemory">—</strong></div><div><span>启动时间</span><strong id="processStarted">—</strong></div><div class="path-meta"><span>程序路径</span><strong id="processPath">—</strong></div>
+          </div>
+        </section>
 
-    <section class="panel scan-panel">
-      <div class="panel-title"><div><span class="eyebrow">内存扫描器</span><h2>Int32 精确数值</h2></div><div class="scan-session"><span id="scanState">空闲</span><strong id="scanCount">0 个结果</strong></div></div>
-      <div class="scan-controls"><label>当前数值<input id="scanValue" type="number" step="1" placeholder="例如 100" /></label><label>数据类型<select disabled><option>Int32</option></select></label><label>扫描方式<select disabled><option>精确数值</option></select></label><button id="firstScan" class="button primary" disabled>首次扫描</button><button id="nextScan" class="button secondary" disabled>再次扫描</button><button id="cancelScan" class="button warning" disabled>取消</button><button id="newScan" class="button ghost">新建扫描</button></div>
-      <div class="progress-wrap"><div id="scanProgress" class="progress-bar"></div></div><div class="progress-text"><span id="scanProgressText">请先连接目标进程。</span><span id="scanElapsed">—</span></div>
-    </section>
+        <section class="panel scan-panel">
+          <div class="panel-heading"><span class="panel-glyph">⌕</span><span>扫描器</span><span class="heading-state" id="scanState">空闲</span></div>
+          <div class="scan-form">
+            <label>数值<input id="scanValue" type="number" step="1" placeholder="输入当前数值" /></label>
+            <label>数据类型<select disabled><option>Int32</option></select></label>
+            <label>扫描类型<select disabled><option>精确数值</option></select></label>
+          </div>
+          <div class="scan-actions"><button id="firstScan" class="button primary" disabled>首次扫描</button><button id="nextScan" class="button" disabled>再次扫描</button></div>
+          <div class="scan-actions secondary-actions"><button id="cancelScan" class="button warning" disabled>取消</button><button id="newScan" class="button">新建扫描</button></div>
+          <div class="scan-stat"><span>当前结果</span><strong id="scanCount">0 个结果</strong></div>
+          <div class="progress-wrap"><div id="scanProgress" class="progress-bar"></div></div>
+          <div class="progress-text"><span id="scanProgressText">请先连接目标进程。</span><span id="scanElapsed">—</span></div>
+        </section>
 
-    <section class="split-grid">
-      <section class="panel results-panel"><div class="panel-title compact"><div><span class="eyebrow">扫描结果</span><h2>候选地址</h2></div><button id="addSelected" class="button secondary" disabled>添加选中项</button></div><div class="table-wrap"><table><thead><tr><th></th><th>地址</th><th>数值</th><th>类型</th><th>区域</th><th></th></tr></thead><tbody id="resultsBody"><tr><td colspan="6" class="empty">暂无扫描结果。</td></tr></tbody></table></div></section>
-      <section class="panel address-panel"><div class="panel-title compact"><div><span class="eyebrow">地址列表</span><h2>已保存变量</h2></div><button id="refreshAddresses" class="button ghost">刷新数值</button></div><div class="table-wrap"><table><thead><tr><th>描述</th><th>地址</th><th>当前值</th><th>新数值</th><th>冻结</th><th></th></tr></thead><tbody id="addressBody"><tr><td colspan="6" class="empty">请从扫描结果添加变量。</td></tr></tbody></table></div></section>
-    </section>
+        <section class="panel profile-panel">
+          <div class="panel-heading"><span class="panel-glyph">▤</span><span>配置文件</span></div>
+          <label>配置名称<input id="profileName" type="text" placeholder="例如 勇者传说" /></label>
+          <div class="profile-actions"><button id="saveProfile" class="button primary" disabled>保存配置</button><button id="loadProfile" class="button">加载</button></div>
+          <select id="profileSelect"><option value="">选择已保存配置</option></select>
+          <p class="hint">地址列表保存在本机配置目录。</p>
+        </section>
+      </aside>
 
-    <section class="bottom-grid">
-      <section class="panel regions-panel"><div class="panel-title compact"><div><span class="eyebrow">虚拟内存</span><h2>可读取区域</h2></div><span id="regionSummary" class="muted">0 个区域</span></div><div class="table-wrap"><table><thead><tr><th>基址</th><th>大小</th><th>保护</th><th>类型</th></tr></thead><tbody id="regionsBody"><tr><td colspan="4" class="empty">连接进程后枚举内存区域。</td></tr></tbody></table></div></section>
-      <section class="panel profile-panel"><div class="panel-title compact"><div><span class="eyebrow">持久化</span><h2>游戏配置</h2></div></div><label>配置名称<input id="profileName" type="text" placeholder="例如 勇者传说" /></label><div class="profile-actions"><button id="saveProfile" class="button primary" disabled>保存配置</button><select id="profileSelect"><option value="">选择已保存配置</option></select><button id="loadProfile" class="button secondary">加载</button></div><p class="hint">配置版本 v1 · 地址列表保存在本机配置目录。</p></section>
-    </section>
+      <section class="center-column">
+        <section class="panel results-panel">
+          <div class="panel-heading"><span class="panel-glyph">☷</span><span>扫描结果</span><span class="heading-state">候选地址</span><button id="addSelected" class="button heading-action" disabled>添加选中项</button></div>
+          <div class="table-wrap results-table"><table><thead><tr><th class="check-cell"></th><th>地址</th><th>数值</th><th>类型</th><th>区域 / 模块</th><th></th></tr></thead><tbody id="resultsBody"><tr><td colspan="6" class="empty">暂无扫描结果。连接进程后输入数值开始扫描。</td></tr></tbody></table></div>
+        </section>
+        <section class="panel regions-panel">
+          <div class="panel-heading"><span class="panel-glyph">▦</span><span>内存区域</span><span id="regionSummary" class="heading-state">0 个区域</span></div>
+          <div class="table-wrap regions-table"><table><thead><tr><th>基址</th><th>大小</th><th>保护</th><th>类型</th></tr></thead><tbody id="regionsBody"><tr><td colspan="4" class="empty">连接进程后枚举内存区域。</td></tr></tbody></table></div>
+        </section>
+      </section>
 
-    <section class="panel log-panel"><div class="panel-title compact"><div><span class="eyebrow">事件日志</span><h2>诊断信息</h2></div><span class="muted">仅本地记录</span></div><div id="logList" class="log-list"></div></section>
-  </main>
+      <aside class="right-column">
+        <section class="panel address-panel">
+          <div class="panel-heading"><span class="panel-glyph">▰</span><span>地址列表</span><span class="heading-state">已保存变量</span><button id="refreshAddresses" class="button heading-action">刷新</button></div>
+          <div class="table-wrap address-table"><table><thead><tr><th>描述</th><th>地址</th><th>当前值</th><th>新值</th><th>冻</th><th></th></tr></thead><tbody id="addressBody"><tr><td colspan="6" class="empty">请从扫描结果添加变量。</td></tr></tbody></table></div>
+        </section>
+        <section class="panel quick-help">
+          <div class="panel-heading"><span class="panel-glyph">?</span><span>操作提示</span></div>
+          <div class="help-lines"><p><kbd>1</kbd> 连接目标进程</p><p><kbd>2</kbd> 输入当前数值并首次扫描</p><p><kbd>3</kbd> 回到游戏改变数值</p><p><kbd>4</kbd> 输入新数值并再次扫描</p><p><kbd>⌖</kbd> 点击游戏画面中的数字可直接修改</p></div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel log-panel"><div class="panel-heading"><span class="panel-glyph">≡</span><span>事件日志</span><span class="heading-state">仅本地记录</span></div><div id="logList" class="log-list"></div></section>
+    <footer class="status-bar"><span><span id="footerStatusDot" class="status-dot disconnected"></span><span id="footerStatusText">未连接</span></span><span>扫描核心：Int32 精确扫描</span><span class="status-spacer"></span><span>本地离线工具</span></footer>
+  </div>
+
   <div id="screenEditModal" class="modal-backdrop" hidden>
     <section class="modal panel" role="dialog" aria-modal="true" aria-labelledby="screenEditTitle">
-      <div class="panel-title"><div><span class="eyebrow">屏幕取值</span><h2 id="screenEditTitle">修改画面上的数字</h2></div><button id="closeScreenEdit" class="button ghost" aria-label="关闭">×</button></div>
+      <div class="panel-heading"><span class="panel-glyph">⌖</span><span id="screenEditTitle">修改画面上的数字</span><button id="closeScreenEdit" class="button close-button" aria-label="关闭">×</button></div>
       <p id="screenEditHint" class="modal-hint">已捕获点击位置。请输入画面上显示的当前整数和要替换的新数值。</p>
       <div class="modal-fields"><label>画面当前值<input id="screenCurrentValue" type="number" step="1" /></label><label>替换为<input id="screenNewValue" type="number" step="1" /></label></div>
-      <div class="modal-actions"><button id="cancelScreenEdit" class="button secondary">取消</button><button id="applyScreenEdit" class="button primary">扫描并修改</button></div>
+      <div class="modal-actions"><button id="cancelScreenEdit" class="button">取消</button><button id="applyScreenEdit" class="button primary">扫描并修改</button></div>
     </section>
   </div>
   <script src="app.js"></script>

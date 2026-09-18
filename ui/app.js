@@ -19,8 +19,13 @@ function log(level, message, metadata) {
   els.logList.prepend(row); while (els.logList.children.length > 80) els.logList.lastElementChild.remove();
 }
 function setStatus(status, message) {
-  els.statusDot.className = `status-dot ${status === 'Connected' ? 'connected' : status === 'Scanning' ? 'scanning' : 'disconnected'}`;
-  els.statusText.textContent = message || STATUS_LABELS[status] || status; els.scanState.textContent = status === 'Connected' ? '就绪' : STATUS_LABELS[status] || status;
+  const stateClass = status === 'Connected' ? 'connected' : status === 'Scanning' ? 'scanning' : 'disconnected';
+  const label = message || STATUS_LABELS[status] || status;
+  els.statusDot.className = `status-dot ${stateClass}`;
+  els.statusText.textContent = label;
+  els.scanState.textContent = status === 'Connected' ? '就绪' : STATUS_LABELS[status] || status;
+  const footerDot = $('#footerStatusDot'); const footerText = $('#footerStatusText');
+  if (footerDot && footerText) { footerDot.className = `status-dot ${stateClass}`; footerText.textContent = label; }
 }
 function formatBytes(value) { const n = Number(value || 0); if (n < 1024) return `${n} B`; if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`; if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`; return `${(n / 1024 ** 3).toFixed(2)} GB`; }
 function formatStart(value) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', { hour12: false }); }
