@@ -7,8 +7,8 @@ class ProcessService {
     this.attached = null;
   }
 
-  async list() {
-    return this.bridge.listProcesses();
+  async list(options = {}) {
+    return this.bridge.listProcesses(options);
   }
 
   async attach(processInfo) {

@@ -19,6 +19,7 @@ public sealed class Request
     [DataMember] public int size;
     [DataMember] public bool includeExecutable;
     [DataMember] public bool includeMapped;
+    [DataMember] public bool taskbarOnly;
 }
 
 [DataContract]
@@ -81,6 +82,12 @@ public static class NativeMethods
     public const uint MEM_PRIVATE = 0x20000;
     public const uint MEM_MAPPED = 0x40000;
     public const uint MEM_IMAGE = 0x1000000;
+    public const uint GW_OWNER = 4;
+    public const int GWL_EXSTYLE = -20;
+    public const long WS_EX_TOOLWINDOW = 0x00000080L;
+    public const long WS_EX_APPWINDOW = 0x00040000L;
+
+    public delegate bool EnumWindowsProc(IntPtr window, IntPtr lParam);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct MEMORY_BASIC_INFORMATION
@@ -101,6 +108,14 @@ public static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)] public static extern bool WriteProcessMemory(IntPtr process, IntPtr address, byte[] buffer, UIntPtr size, out UIntPtr written);
     [DllImport("kernel32.dll", SetLastError = true)] public static extern bool IsWow64Process2(IntPtr process, out ushort processMachine, out ushort nativeMachine);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr window, uint command);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextLength(IntPtr window);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, StringBuilder text, int maxCount);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)] private static extern IntPtr GetWindowLongPtr64(IntPtr window, int index);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)] private static extern int GetWindowLong32(IntPtr window, int index);
+    public static long GetWindowExStyle(IntPtr window) { return IntPtr.Size == 8 ? GetWindowLongPtr64(window, GWL_EXSTYLE).ToInt64() : GetWindowLong32(window, GWL_EXSTYLE); }
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int virtualKey);
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT point);
@@ -155,7 +170,7 @@ public static class Program
     {
         switch (request.op)
         {
-            case "list": return Success(ListProcesses());
+            case "list": return Success(ListProcesses(request.taskbarOnly));
             case "regions": return Success(ListRegions(request.pid, request.includeExecutable, request.includeMapped));
             case "read": return Success(Read(request.pid, request.address, request.size));
             case "write": return Success(Write(request.pid, request.address, request.data));
@@ -166,13 +181,15 @@ public static class Program
 
     private static Response Success(object data) { return new Response { ok = true, data = PayloadSerializer.Serialize(data) }; }
 
-    private static ProcessInfoDto[] ListProcesses()
+    private static ProcessInfoDto[] ListProcesses(bool taskbarOnly)
     {
         var result = new List<ProcessInfoDto>();
+        var taskbarPids = taskbarOnly ? GetTaskbarProcessIds() : null;
         foreach (var process in Process.GetProcesses())
         {
             try
             {
+                if (taskbarPids != null && !taskbarPids.Contains(process.Id)) continue;
                 string filePath = "";
                 try { filePath = process.MainModule.FileName; }
                 catch (Exception exception) { Diagnostic("path unavailable for PID " + process.Id + ": " + exception.Message); }
@@ -194,6 +211,25 @@ public static class Program
         }
         result.Sort((a, b) => StringComparer.OrdinalIgnoreCase.Compare(a.name, b.name));
         return result.ToArray();
+    }
+
+    private static HashSet<int> GetTaskbarProcessIds()
+    {
+        var processIds = new HashSet<int>();
+        int ownPid = Process.GetCurrentProcess().Id;
+        NativeMethods.EnumWindows((window, lParam) =>
+        {
+            if (!NativeMethods.IsWindowVisible(window)) return true;
+            if (NativeMethods.GetWindow(window, NativeMethods.GW_OWNER) != IntPtr.Zero) return true;
+            if (NativeMethods.GetWindowTextLength(window) == 0) return true;
+            long style = NativeMethods.GetWindowExStyle(window);
+            if ((style & NativeMethods.WS_EX_TOOLWINDOW) != 0 && (style & NativeMethods.WS_EX_APPWINDOW) == 0) return true;
+            uint processId;
+            NativeMethods.GetWindowThreadProcessId(window, out processId);
+            if (processId != 0 && processId != (uint)ownPid) processIds.Add((int)processId);
+            return true;
+        }, IntPtr.Zero);
+        return processIds;
     }
 
     private static string GetArchitecture(IntPtr handle)

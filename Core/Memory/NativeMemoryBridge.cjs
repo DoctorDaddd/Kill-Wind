@@ -51,8 +51,8 @@ class NativeMemoryBridge extends EventEmitter {
     });
   }
 
-  async listProcesses() {
-    return this.call('list');
+  async listProcesses(options = {}) {
+    return this.call('list', options);
   }
 
   async listRegions(pid, options = {}) {

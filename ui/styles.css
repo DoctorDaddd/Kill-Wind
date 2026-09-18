@@ -25,7 +25,7 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
 
 .app-shell { min-width: 1060px; min-height: 100vh; display: flex; flex-direction: column; background: var(--chrome-deep); }
-.app-header { border-bottom: 1px solid #0c0f12; background: var(--chrome); box-shadow: 0 2px 8px rgba(0, 0, 0, .38); }
+.app-header { position: relative; border-bottom: 1px solid #0c0f12; background: var(--chrome); box-shadow: 0 2px 8px rgba(0, 0, 0, .38); }
 .title-strip { height: 50px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #1b2025; }
 .brand { display: flex; align-items: center; gap: 9px; }
 .brand-mark { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid #527d7f; border-radius: 4px; background: #183137; color: var(--cyan); }
@@ -40,6 +40,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .menu-bar { height: 27px; display: flex; align-items: center; gap: 1px; padding: 0 8px; border-top: 1px solid #242b32; border-bottom: 1px solid #0d1013; background: #171b20; }
 .menu-item { height: 25px; padding: 0 11px; border: 0; color: #c3cad1; background: transparent; }.menu-item:hover { background: #303941; color: #fff; }
 .menu-spacer { flex: 1; }.build-label { padding-right: 8px; color: var(--dim); font-size: 11px; }
+.menu-popup { position: absolute; top: 77px; left: 8px; z-index: 10; min-width: 188px; padding: 4px 0; border: 1px solid #596671; border-radius: 2px; background: #252c33; box-shadow: 0 8px 20px rgba(0, 0, 0, .55); }.menu-popup[hidden] { display: none; }.menu-popup button { display: flex; width: 100%; min-height: 29px; align-items: center; justify-content: space-between; padding: 0 12px; border: 0; color: #d6dde2; background: transparent; text-align: left; }.menu-popup button:hover { color: #fff; background: #31565a; }.menu-popup kbd { color: var(--dim); font: 10px Consolas, monospace; }
 .main-toolbar { min-height: 52px; display: flex; align-items: center; gap: 5px; padding: 6px 9px; border-top: 1px solid #252c32; background: #20252a; }
 .tool-button, .button { min-height: 29px; padding: 0 10px; border: 1px solid #4b5661; border-radius: 3px; color: #d9dfe4; background: #303841; }
 .tool-button { display: inline-flex; align-items: center; gap: 6px; }.tool-button:hover:not(:disabled), .button:hover:not(:disabled) { border-color: #7b8996; background: #3b4650; }
@@ -65,5 +66,6 @@ select, input { color: var(--text); background: var(--panel-input); } select:foc
 .log-panel { margin: 0 6px 5px; flex: 0 0 116px; }.log-list { height: 84px; overflow: auto; padding: 5px 9px; font: 11px/1.45 Consolas, monospace; }.log-entry { display: grid; grid-template-columns: 70px 45px 1fr; gap: 8px; padding: 1px 0; }.log-time, .log-level { color: var(--dim); }.log-entry.info .log-level { color: var(--blue); }.log-entry.warning .log-level { color: var(--gold); }.log-entry.error .log-level { color: var(--red); }.log-entry.success .log-level { color: var(--green); }
 .status-bar { display: flex; align-items: center; gap: 18px; min-height: 24px; padding: 0 10px; border-top: 1px solid #090c0e; color: var(--muted); background: #171b20; font-size: 10px; }.status-bar > span { display: inline-flex; align-items: center; gap: 6px; }.status-spacer { flex: 1; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding: 20px; background: rgba(0, 0, 0, .7); }.modal-backdrop[hidden] { display: none; }.modal { width: min(460px, 100%); box-shadow: 0 10px 40px #000; }.modal-hint { margin: 14px 12px; color: var(--muted); }.modal-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; padding: 0 12px; }.modal-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 14px 12px 12px; }.close-button { min-width: 24px; min-height: 23px; margin-left: auto; padding: 0; color: var(--muted); }
+.help-content { padding: 13px 14px 3px; color: var(--muted); }.help-content h3 { margin: 0 0 10px; color: var(--text); font-size: 14px; font-weight: 600; }.help-content p { margin: 7px 0; }.help-content .help-note { color: var(--dim); font-size: 11px; }
 
 @media (max-width: 1240px) { .app-shell { min-width: 980px; }.workspace { grid-template-columns: 245px minmax(390px, 1fr) 340px; }.process-label { min-width: 260px; }.process-label select { min-width: 180px; } }

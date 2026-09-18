@@ -52,7 +52,8 @@ function setupServices() {
     if (event.type === 'freeze-error') logger.error('Freeze write failed', event);
     send('freeze:event', event);
   });
-  ipcMain.handle('process:list', async () => processService.list());
+  ipcMain.handle('process:list', async () => processService.list({ taskbarOnly: true }));
+  ipcMain.handle('app:quit', () => { app.quit(); return true; });
   ipcMain.handle('process:attach', async (_event, processInfo) => {
     const attached = await processService.attach(processInfo);
     scanSession = null;

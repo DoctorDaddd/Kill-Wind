@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('killwind', {
   saveProfile: (profile) => invoke('profile:save', profile),
   loadProfile: (name) => invoke('profile:load', name),
   launchTestGame: () => invoke('test-game:launch'),
+  quit: () => invoke('app:quit'),
   pickScreenPoint: () => invoke('screen:pick'),
   applyScreenEdit: (payload) => invoke('screen:apply', payload),
   applyScreenCandidate: (payload) => invoke('screen:apply-candidate', payload),

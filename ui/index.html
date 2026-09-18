@@ -13,7 +13,7 @@
         <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M11 8v24M12 20 28 8M12 20l17 12"/><path d="M22 10c6-4 10-1 12 2M23 18c6-3 10-1 13 2M22 27c5-2 8-1 11 1"/></svg></span><div><strong>KillWind</strong><span>通用离线游戏修改器</span></div></div>
         <div class="target-status"><span id="statusDot" class="status-dot disconnected"></span><span id="statusText">未连接目标进程</span></div>
       </div>
-      <nav class="menu-bar" aria-label="主菜单"><button class="menu-item">文件</button><button class="menu-item">编辑</button><button class="menu-item">视图</button><button class="menu-item">工具</button><button class="menu-item">帮助</button><span class="menu-spacer"></span><span class="build-label">离线模式 · v0.1.0</span></nav>
+      <nav class="menu-bar" aria-label="主菜单"><button id="menuFile" class="menu-item" data-menu="file">文件</button><button id="menuEdit" class="menu-item" data-menu="edit">编辑</button><button id="menuView" class="menu-item" data-menu="view">视图</button><button id="menuTools" class="menu-item" data-menu="tools">工具</button><button id="menuHelp" class="menu-item" data-menu="help">帮助</button><span class="menu-spacer"></span><span class="build-label">离线模式 · v0.1.0</span></nav>
       <div class="main-toolbar">
         <button id="refreshProcesses" class="tool-button" title="刷新进程"><span class="tool-icon">↻</span><span>刷新</span></button>
         <button id="launchTestGame" class="tool-button" title="启动内置测试程序"><span class="tool-icon">▶</span><span>测试程序</span></button>
@@ -24,6 +24,7 @@
         <span class="tool-separator"></span>
         <button id="screenEdit" class="tool-button warning" disabled><span class="tool-icon">⌖</span><span>屏幕取值</span></button>
       </div>
+      <div id="menuPopup" class="menu-popup" hidden></div>
     </header>
 
     <main class="workspace">
@@ -91,6 +92,13 @@
       <p id="screenEditHint" class="modal-hint">已捕获点击位置。请输入画面上显示的当前整数和要替换的新数值。</p>
       <div class="modal-fields"><label>画面当前值<input id="screenCurrentValue" type="number" step="1" /></label><label>替换为<input id="screenNewValue" type="number" step="1" /></label></div>
       <div class="modal-actions"><button id="cancelScreenEdit" class="button">取消</button><button id="applyScreenEdit" class="button primary">扫描并修改</button></div>
+    </section>
+  </div>
+  <div id="helpModal" class="modal-backdrop" hidden>
+    <section class="modal panel help-modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="panel-heading"><span class="panel-glyph">?</span><span id="helpTitle">关于 KillWind</span><button id="closeHelp" class="button close-button" aria-label="关闭">×</button></div>
+      <div class="help-content"><h3>KillWind · 通用离线游戏修改器</h3><p>用于本地离线游戏进程研究、数值扫描、地址修改和冻结。</p><p>基本流程：连接游戏 → 输入数值 → 首次扫描 → 改变游戏数值 → 再次扫描 → 添加地址。</p><p class="help-note">当前版本：0.1.0 · 仅处理本地离线进程。</p></div>
+      <div class="modal-actions"><button id="closeHelpButton" class="button primary">确定</button></div>
     </section>
   </div>
   <script src="app.js"></script>
