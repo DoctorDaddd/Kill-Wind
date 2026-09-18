@@ -19,6 +19,13 @@ Windows-only local editor for offline single-player process inspection. This rep
 - Dark themed ComboBox, DataGrid, ScrollBar, and internal panel scrolling
 - Module enumeration and basic multi-level pointer resolution (`Module + Offset -> Offset -> ...`)
 - Pointer-backed address entries are persisted in Profiles and re-resolved after reconnect
+- Pointer Scan reverse search with depth, maximum offset, alignment, cancellation, and module roots
+- AOB / Signature Scan with `??` wildcards and module/full-process scope
+- Signature-backed address recovery after a game update or restart
+- Memory Viewer byte read/write and editable hex content
+- Save Editor for text/binary files, timestamped backups, and byte-level Save Diff
+- Trainer Mode, F1-F8 global hotkeys, original-value restore, and live address watching
+- WPF crash logs under `%LOCALAPPDATA%\KillWind\CrashLogs`
 - A small `MemoryTestGame.exe` used by integration tests
 
 The primary UI is a native WPF desktop executable. The existing Electron shell remains available as a fallback and for compatibility checks; it is not required by the WPF EXE. Core scanning and native process access remain separate from the UI shell.

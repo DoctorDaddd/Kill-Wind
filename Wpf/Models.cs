@@ -57,11 +57,13 @@ namespace KillWind.Wpf
         public string Address { get; set; }
         public string CurrentValue { get; set; }
         public string NewValue { get; set; }
+        public string OriginalValue { get; set; }
         public string Type { get; set; }
         public int Size { get; set; }
         public string Module { get; set; }
         public string ModuleOffset { get; set; }
         public string PointerOffsets { get; set; }
+        public string Signature { get; set; }
         public bool Frozen { get; set; }
         public ulong AddressValue { get { return Convert.ToUInt64(Address.Substring(2), 16); } }
     }

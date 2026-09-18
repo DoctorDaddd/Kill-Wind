@@ -30,9 +30,11 @@ namespace KillWind.Wpf
             return await CallDataAsync<ProcessInfo[]>("list", payload);
         }
 
-        public async Task<MemoryRegion[]> ListRegionsAsync(int pid)
+        public async Task<MemoryRegion[]> ListRegionsAsync(int pid, bool includeExecutable = false, bool includeMapped = false)
         {
             var payload = new Dictionary<string, object>(); payload["pid"] = pid;
+            payload["includeExecutable"] = includeExecutable;
+            payload["includeMapped"] = includeMapped;
             return await CallDataAsync<MemoryRegion[]>("regions", payload);
         }
 

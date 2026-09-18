@@ -23,10 +23,13 @@ namespace KillWind.Wpf
         private readonly NativeBridgeClient bridge;
         private readonly MemoryScanner scanner;
         private readonly PointerResolver pointerResolver;
+        private readonly AobScanner aobScanner;
         private readonly ProfileStore profileStore;
         private readonly ObservableAddressList addresses = new ObservableAddressList();
         private readonly DispatcherTimer freezeTimer;
         private readonly DispatcherTimer processWatchTimer;
+        private readonly DispatcherTimer watchTimer;
+        private readonly GlobalHotkeyService hotkeys;
         private ComboBox processCombo;
         private ComboBox typeCombo;
         private ComboBox initialCombo;
@@ -53,6 +56,7 @@ namespace KillWind.Wpf
         private List<ScanResult> scanResults = new List<ScanResult>();
         private readonly List<List<ScanResult>> scanHistory = new List<List<ScanResult>>();
         private CancellationTokenSource scanCancellation;
+        private bool addressRefreshRunning;
 
         private static readonly Brush WindowBrush = BrushFrom("#111418");
         private static readonly Brush PanelBrush = BrushFrom("#20262D");
@@ -68,17 +72,21 @@ namespace KillWind.Wpf
             bridge = new NativeBridgeClient(helperPath);
             scanner = new MemoryScanner(bridge);
             pointerResolver = new PointerResolver(bridge);
+            aobScanner = new AobScanner(bridge);
             profileStore = new ProfileStore();
             freezeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
             freezeTimer.Tick += FreezeTimerOnTick;
             processWatchTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             processWatchTimer.Tick += ProcessWatchTimerOnTick;
+            watchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            watchTimer.Tick += WatchTimerOnTick;
+            hotkeys = new GlobalHotkeyService(this, HotkeyTriggered);
             Title = "KillWind";
             Width = 1380; Height = 900; MinWidth = 1060; MinHeight = 700;
             WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; Background = WindowBrush;
             BuildUi();
-            Loaded += async (sender, args) => { await RefreshProcessesAsync(); RefreshProfileList(); processWatchTimer.Start(); };
-            Closed += (sender, args) => { freezeTimer.Stop(); processWatchTimer.Stop(); bridge.Dispose(); };
+            Loaded += async (sender, args) => { hotkeys.RegisterDefaults(); await RefreshProcessesAsync(); RefreshProfileList(); processWatchTimer.Start(); };
+            Closed += (sender, args) => { freezeTimer.Stop(); processWatchTimer.Stop(); watchTimer.Stop(); hotkeys.Dispose(); bridge.Dispose(); };
         }
 
         private void BuildUi()
@@ -143,9 +151,9 @@ namespace KillWind.Wpf
         {
             var menu = new Menu { Background = BrushFrom("#171B20"), Foreground = TextBrush, Padding = new Thickness(6, 0, 0, 0) };
             var file = Menu("文件"); file.Items.Add(MenuCommand("新建扫描", NewScan)); file.Items.Add(AsyncMenuCommand("刷新进程", RefreshProcessesAsync)); file.Items.Add(new Separator()); file.Items.Add(MenuCommand("退出", Close));
-            var edit = Menu("编辑"); edit.Items.Add(MenuCommand("添加选中地址", AddSelectedAddresses)); edit.Items.Add(AsyncMenuCommand("刷新地址数值", RefreshAddressesAsync)); edit.Items.Add(MenuCommand("清空当前扫描", NewScan));
-            var view = Menu("视图"); view.Items.Add(AsyncMenuCommand("刷新内存区域", RefreshRegionsAsync)); view.Items.Add(AsyncMenuCommand("刷新地址列表", RefreshAddressesAsync));
-            var tools = Menu("工具"); tools.Items.Add(MenuCommand("启动测试程序", LaunchTestGame)); tools.Items.Add(AsyncMenuCommand("屏幕取值模式", ScreenEditAsync));
+            var edit = Menu("编辑"); edit.Items.Add(MenuCommand("添加选中地址", AddSelectedAddresses)); edit.Items.Add(AsyncMenuCommand("刷新地址数值", RefreshAddressesMenuAsync)); edit.Items.Add(MenuCommand("清空当前扫描", NewScan));
+            var view = Menu("视图"); view.Items.Add(AsyncMenuCommand("刷新内存区域", RefreshRegionsAsync)); view.Items.Add(AsyncMenuCommand("刷新地址列表", RefreshAddressesMenuAsync)); view.Items.Add(MenuCommand("Memory Viewer / Dissect", OpenMemoryViewer));
+            var tools = Menu("工具"); tools.Items.Add(MenuCommand("启动测试程序", LaunchTestGame)); tools.Items.Add(AsyncMenuCommand("屏幕取值模式", ScreenEditAsync)); tools.Items.Add(MenuCommand("AOB / Signature Scan", OpenAobScanner)); tools.Items.Add(MenuCommand("Pointer Scan", OpenPointerScanner)); tools.Items.Add(MenuCommand("存档编辑器", OpenSaveEditor)); tools.Items.Add(MenuCommand("Trainer Mode", OpenTrainer));
             var help = Menu("帮助"); help.Items.Add(MenuCommand("关于 KillWind", () => Message("KillWind WPF 原生桌面版\n用于本地离线游戏进程研究。\n当前版本：0.2.0")));
             menu.Items.Add(file); menu.Items.Add(edit); menu.Items.Add(view); menu.Items.Add(tools); menu.Items.Add(help);
             Grid.SetRow(menu, 1); return menu;
@@ -242,7 +250,7 @@ namespace KillWind.Wpf
 
         private UIElement BuildAddressActions()
         {
-            var stack = new StackPanel { Margin = new Thickness(8) }; stack.Children.Add(ToolButton("添加选中地址", AddSelectedAddresses, true)); stack.Children.Add(ToolButton("写入选中地址", async () => await WriteSelectedAddressAsync())); stack.Children.Add(ToolButton("刷新地址数值", async () => await RefreshAddressesAsync())); return stack;
+            var stack = new StackPanel { Margin = new Thickness(8) }; stack.Children.Add(ToolButton("添加选中地址", AddSelectedAddresses, true)); stack.Children.Add(ToolButton("写入选中地址", async () => await WriteSelectedAddressAsync())); stack.Children.Add(ToolButton("恢复原始值", async () => await RestoreSelectedAsync())); stack.Children.Add(ToolButton("刷新地址数值", async () => await RefreshAddressesAsync())); stack.Children.Add(ToolButton("取消全部冻结", DisableAllFreeze)); return stack;
         }
 
         private UIElement BuildPointerActions()
@@ -504,13 +512,13 @@ namespace KillWind.Wpf
         private async Task AttachAsync()
         {
             var selected = processCombo.SelectedItem as ProcessInfo; if (selected == null) { Message("请选择目标进程。"); return; }
-            try { attached = selected; regions = await bridge.ListRegionsAsync(attached.pid); modules = await bridge.ListModulesAsync(attached.pid); regionsGrid.ItemsSource = regions; moduleCombo.ItemsSource = modules; moduleCombo.SelectedItem = modules.FirstOrDefault(item => String.Equals(item.name, attached.name, StringComparison.OrdinalIgnoreCase)); processText.Text = "已连接：" + attached.name + "  PID " + attached.pid; statusText.Text = "已连接 · " + attached.name; if (String.IsNullOrWhiteSpace(profileName.Text)) profileName.Text = attached.name.Replace(".exe", ""); UpdateFreezeTimer(); Log("成功", "已连接进程：" + attached.name + "，模块 " + modules.Length + " 个"); if (addresses.Count > 0) await RefreshAddressesAsync(); }
+            try { attached = selected; regions = await bridge.ListRegionsAsync(attached.pid); modules = await bridge.ListModulesAsync(attached.pid); regionsGrid.ItemsSource = regions; moduleCombo.ItemsSource = modules; moduleCombo.SelectedItem = modules.FirstOrDefault(item => String.Equals(item.name, attached.name, StringComparison.OrdinalIgnoreCase)); processText.Text = "已连接：" + attached.name + "  PID " + attached.pid; statusText.Text = "已连接 · " + attached.name; if (String.IsNullOrWhiteSpace(profileName.Text)) profileName.Text = attached.name.Replace(".exe", ""); UpdateFreezeTimer(); watchTimer.Start(); Log("成功", "已连接进程：" + attached.name + "，模块 " + modules.Length + " 个"); if (addresses.Count > 0) await RefreshAddressesAsync(); }
             catch (Exception error) { attached = null; Log("错误", error.Message); }
         }
 
         private void Detach()
         {
-            freezeTimer.Stop(); attached = null; regions = new MemoryRegion[0]; modules = new ModuleInfo[0]; moduleCombo.ItemsSource = modules; regionsGrid.ItemsSource = regions; scanHistory.Clear(); scanResults = new List<ScanResult>(); resultsGrid.ItemsSource = scanResults; processText.Text = "未连接目标进程"; statusText.Text = "未连接"; Log("信息", "已断开进程");
+            freezeTimer.Stop(); watchTimer.Stop(); attached = null; regions = new MemoryRegion[0]; modules = new ModuleInfo[0]; moduleCombo.ItemsSource = modules; regionsGrid.ItemsSource = regions; scanHistory.Clear(); scanResults = new List<ScanResult>(); resultsGrid.ItemsSource = scanResults; processText.Text = "未连接目标进程"; statusText.Text = "未连接"; Log("信息", "已断开进程");
         }
 
         private void ProcessWatchTimerOnTick(object sender, EventArgs args)
@@ -533,6 +541,7 @@ namespace KillWind.Wpf
         private void HandleProcessClosed()
         {
             freezeTimer.Stop();
+            watchTimer.Stop();
             attached = null;
             regions = new MemoryRegion[0];
             modules = new ModuleInfo[0];
@@ -561,6 +570,60 @@ namespace KillWind.Wpf
                 Log("信息", "模块列表已刷新：" + modules.Length + " 个");
             }
             catch (Exception error) { Log("错误", "模块列表刷新失败：" + error.Message); }
+        }
+
+        private void OpenAobScanner()
+        {
+            if (attached == null) { Message("请先连接目标进程。"); return; }
+            var window = new AobScanWindow(bridge, attached, modules, AddAobMatchAsync) { Owner = this };
+            window.Show();
+        }
+
+        private void OpenPointerScanner()
+        {
+            if (attached == null) { Message("请先连接目标进程。"); return; }
+            var selected = resultsGrid.SelectedItem as ScanResult;
+            var window = new PointerScanWindow(bridge, attached, modules, AddPointerPathAsync, selected == null ? "" : selected.Address) { Owner = this };
+            window.Show();
+            if (selected != null) Log("信息", "Pointer Scan 已预填选中结果地址：" + selected.Address);
+        }
+
+        private void OpenSaveEditor()
+        {
+            string backupDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KillWind", "Backups");
+            new SaveEditorWindow(backupDirectory) { Owner = this }.Show();
+        }
+
+        private void OpenMemoryViewer()
+        {
+            if (attached == null) { Message("请先连接目标进程。"); return; }
+            new MemoryViewerWindow(bridge, attached) { Owner = this }.Show();
+        }
+
+        private void OpenTrainer()
+        {
+            if (attached == null) { Message("请先连接目标进程。"); return; }
+            new TrainerWindow(addresses, WriteEntryAsync, ToggleFreezeEntry) { Owner = this }.Show();
+        }
+
+        private async Task AddAobMatchAsync(AobMatch match)
+        {
+            try
+            {
+                int size = AobPattern.Parse(match.Pattern).Bytes.Length;
+                byte[] bytes = await bridge.ReadAsync(attached.pid, match.AddressValue, size);
+                string value = SaveEditorService.FormatBytes(bytes);
+                if (!addresses.Any(item => item.Address.Equals(match.Address, StringComparison.OrdinalIgnoreCase))) addresses.Add(new AddressEntry { Description = "AOB 匹配", Address = match.Address, CurrentValue = value, NewValue = value, OriginalValue = value, Type = "ByteArray", Size = size, Module = match.Module, Signature = match.Pattern });
+                addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("信息", "AOB 地址已加入地址列表：" + match.Address);
+            }
+            catch (Exception error) { Log("错误", "加入 AOB 地址失败：" + error.Message); }
+        }
+
+        private async Task AddPointerPathAsync(PointerPath path)
+        {
+            ModuleInfo module = modules.FirstOrDefault(item => String.Equals(item.name, path.Module, StringComparison.OrdinalIgnoreCase));
+            if (module == null) { Message("指针路径模块未找到。"); return; }
+            await AddResolvedPointerAsync(module, path.ModuleOffset, path.Offsets ?? new ulong[0], path.TargetAddress);
         }
 
         private async Task ResolvePointerAsync()
@@ -592,7 +655,7 @@ namespace KillWind.Wpf
             try { value = DecodeDisplay(type, await bridge.ReadAsync(attached.pid, address, size)); }
             catch (Exception error) { Log("警告", "指针目标读取失败：" + error.Message); }
             if (addresses.Any(item => item.Address.Equals(PointerParser.Format(address), StringComparison.OrdinalIgnoreCase))) return;
-            addresses.Add(new AddressEntry { Description = "指针目标", Address = PointerParser.Format(address), CurrentValue = value, NewValue = value, Type = type, Size = size, Module = module.name, ModuleOffset = PointerParser.Format(moduleOffset), PointerOffsets = String.Join(", ", offsets.Select(PointerParser.Format).ToArray()) });
+            addresses.Add(new AddressEntry { Description = "指针目标", Address = PointerParser.Format(address), CurrentValue = value, NewValue = value, OriginalValue = value, Type = type, Size = size, Module = module.name, ModuleOffset = PointerParser.Format(moduleOffset), PointerOffsets = String.Join(", ", offsets.Select(PointerParser.Format).ToArray()) });
             addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses;
             Log("信息", "指针目标已加入地址列表。");
         }
@@ -694,7 +757,7 @@ namespace KillWind.Wpf
                 ProfileRecord record = profileStore.Load(name);
                 addresses.Clear();
                 foreach (ProfileAddress saved in record.addresses)
-                    addresses.Add(new AddressEntry { Description = saved.description, Address = saved.address, CurrentValue = saved.currentValue, NewValue = saved.newValue, Type = saved.type, Size = saved.size, Module = saved.module, ModuleOffset = saved.moduleOffset, PointerOffsets = saved.pointerOffsets, Frozen = saved.frozen });
+                    addresses.Add(new AddressEntry { Description = saved.description, Address = saved.address, CurrentValue = saved.currentValue, NewValue = saved.newValue, OriginalValue = String.IsNullOrWhiteSpace(saved.originalValue) ? saved.currentValue : saved.originalValue, Type = saved.type, Size = saved.size, Module = saved.module, ModuleOffset = saved.moduleOffset, PointerOffsets = saved.pointerOffsets, Signature = saved.signature, Frozen = saved.frozen });
                 profileName.Text = record.gameName;
                 addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; UpdateFreezeTimer();
                 Log("成功", "Profile 已加载：" + record.gameName + "，地址 " + addresses.Count + " 项");
@@ -717,44 +780,103 @@ namespace KillWind.Wpf
         private void AddSelectedAddresses()
         {
             foreach (ScanResult result in resultsGrid.SelectedItems)
-                if (!addresses.Any(item => item.Address.Equals(result.Address, StringComparison.OrdinalIgnoreCase))) addresses.Add(new AddressEntry { Description = "未命名", Address = result.Address, CurrentValue = result.Value, NewValue = result.Value, Type = result.Type, Size = result.RawValue == null ? 0 : result.RawValue.Length });
+                if (!addresses.Any(item => item.Address.Equals(result.Address, StringComparison.OrdinalIgnoreCase))) addresses.Add(new AddressEntry { Description = "未命名", Address = result.Address, CurrentValue = result.Value, NewValue = result.Value, OriginalValue = result.Value, Type = result.Type, Size = result.RawValue == null ? 0 : result.RawValue.Length });
             addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("信息", "已添加 " + resultsGrid.SelectedItems.Count + " 个地址");
         }
 
         private async Task WriteSelectedAddressAsync()
         {
             var entry = addressesGrid.SelectedItem as AddressEntry; if (entry == null || attached == null) { Message("请选择地址并连接进程。"); return; }
-            try { await ResolveEntryAddressAsync(entry); await bridge.WriteAsync(attached.pid, entry.AddressValue, Encode(entry.Type, entry.NewValue)); entry.CurrentValue = entry.NewValue; addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("成功", "已写入地址 " + entry.Address); } catch (Exception error) { Log("错误", error.Message); }
+            try { await ResolveEntryAddressAsync(entry, true); await bridge.WriteAsync(attached.pid, entry.AddressValue, Encode(entry.Type, entry.NewValue)); entry.CurrentValue = entry.NewValue; addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("成功", "已写入地址 " + entry.Address); } catch (Exception error) { Log("错误", error.Message); }
         }
 
-        private async Task RefreshAddressesAsync()
+        private async Task RefreshAddressesAsync(bool quiet = false)
+        {
+            if (attached == null || addressRefreshRunning) return;
+            addressRefreshRunning = true;
+            try
+            {
+                foreach (AddressEntry entry in addresses.ToList())
+                {
+                    try
+                    {
+                        await ResolveEntryAddressAsync(entry, !quiet);
+                        byte[] data = await bridge.ReadAsync(attached.pid, entry.AddressValue, DataWidth(entry.Type, entry.Size));
+                        entry.CurrentValue = DecodeDisplay(entry.Type, data);
+                    }
+                    catch (Exception error)
+                    {
+                        entry.CurrentValue = "无效";
+                        if (!quiet) Log("警告", "读取地址失败：" + error.Message);
+                    }
+                }
+                addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses;
+                if (!quiet) Log("信息", "地址数值已刷新");
+            }
+            finally { addressRefreshRunning = false; }
+        }
+
+        private async Task RefreshAddressesMenuAsync()
+        {
+            await RefreshAddressesAsync();
+        }
+
+        private async void WatchTimerOnTick(object sender, EventArgs args)
+        {
+            if (attached != null && addresses.Count > 0) await RefreshAddressesAsync(true);
+        }
+
+        private async Task WriteEntryAsync(AddressEntry entry)
         {
             if (attached == null) return;
-            foreach (AddressEntry entry in addresses.ToList())
-            {
-                try
-                {
-                    await ResolveEntryAddressAsync(entry);
-                    byte[] data = await bridge.ReadAsync(attached.pid, entry.AddressValue, DataWidth(entry.Type, entry.Size));
-                    entry.CurrentValue = DecodeDisplay(entry.Type, data);
-                }
-                catch (Exception error)
-                {
-                    entry.CurrentValue = "无效";
-                    Log("警告", "读取地址失败：" + error.Message);
-                }
-            }
-            addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("信息", "地址数值已刷新");
+            try { await ResolveEntryAddressAsync(entry, true); await bridge.WriteAsync(attached.pid, entry.AddressValue, Encode(entry.Type, entry.NewValue)); entry.CurrentValue = entry.NewValue; addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("成功", "Trainer 已写入：" + entry.Description); }
+            catch (Exception error) { Log("错误", "Trainer 写入失败：" + error.Message); }
+        }
+
+        private void HotkeyTriggered(int index)
+        {
+            if (index >= addresses.Count) return;
+            AddressEntry entry = addresses[index];
+            Dispatcher.BeginInvoke(new Action(async () => await WriteEntryAsync(entry)));
+            Log("信息", "全局快捷键 F" + (index + 1) + " 已触发：" + entry.Description);
+        }
+
+        private void ToggleFreezeEntry(AddressEntry entry)
+        {
+            entry.Frozen = !entry.Frozen; UpdateFreezeTimer(); addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("信息", entry.Description + (entry.Frozen ? " 已冻结" : " 已取消冻结"));
         }
 
         private async void FreezeTimerOnTick(object sender, EventArgs args)
         {
             if (attached == null) return;
-            foreach (AddressEntry entry in addresses.Where(item => item.Frozen).ToList()) try { await ResolveEntryAddressAsync(entry); await bridge.WriteAsync(attached.pid, entry.AddressValue, Encode(entry.Type, entry.NewValue)); } catch (Exception error) { Log("错误", "冻结写入失败：" + error.Message); }
+            foreach (AddressEntry entry in addresses.Where(item => item.Frozen).ToList()) try { await ResolveEntryAddressAsync(entry, false); await bridge.WriteAsync(attached.pid, entry.AddressValue, Encode(entry.Type, entry.NewValue)); } catch (Exception error) { Log("错误", "冻结写入失败：" + error.Message); }
         }
 
-        private async Task ResolveEntryAddressAsync(AddressEntry entry)
+        private async Task RestoreSelectedAsync()
         {
+            var entry = addressesGrid.SelectedItem as AddressEntry;
+            if (entry == null || attached == null) { Message("请选择地址并连接进程。"); return; }
+            if (String.IsNullOrWhiteSpace(entry.OriginalValue)) { Message("该地址没有记录原始值。"); return; }
+            try { await ResolveEntryAddressAsync(entry, true); await bridge.WriteAsync(attached.pid, entry.AddressValue, Encode(entry.Type, entry.OriginalValue)); entry.CurrentValue = entry.OriginalValue; entry.NewValue = entry.OriginalValue; addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("成功", "已恢复原始值：" + entry.Description); } catch (Exception error) { Log("错误", "恢复原始值失败：" + error.Message); }
+        }
+
+        private void DisableAllFreeze()
+        {
+            foreach (AddressEntry entry in addresses) entry.Frozen = false;
+            UpdateFreezeTimer(); addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("信息", "已取消全部冻结。");
+        }
+
+        private async Task ResolveEntryAddressAsync(AddressEntry entry, bool allowSignature)
+        {
+            if (allowSignature && !String.IsNullOrWhiteSpace(entry.Signature))
+            {
+                ModuleInfo signatureModule = String.IsNullOrWhiteSpace(entry.Module) ? null : modules.FirstOrDefault(item => String.Equals(item.name, entry.Module, StringComparison.OrdinalIgnoreCase));
+                MemoryRegion[] signatureRegions = await bridge.ListRegionsAsync(attached.pid, true, false);
+                List<AobMatch> matches = await aobScanner.ScanAsync(attached, signatureRegions, AobPattern.Parse(entry.Signature), signatureModule, new Progress<int>(), CancellationToken.None);
+                if (matches.Count != 1) throw new InvalidOperationException("Signature 匹配数量为 " + matches.Count + "，无法自动恢复地址。");
+                entry.Address = matches[0].Address;
+                return;
+            }
             if (String.IsNullOrWhiteSpace(entry.Module) || String.IsNullOrWhiteSpace(entry.ModuleOffset)) return;
             var module = modules.FirstOrDefault(item => String.Equals(item.name, entry.Module, StringComparison.OrdinalIgnoreCase));
             if (module == null) throw new InvalidOperationException("Profile 指针模块未找到：" + entry.Module);

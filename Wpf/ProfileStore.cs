@@ -39,11 +39,13 @@ namespace KillWind.Wpf
                     address = entry.Address,
                     currentValue = entry.CurrentValue,
                     newValue = entry.NewValue,
+                    originalValue = entry.OriginalValue,
                     type = entry.Type,
                     size = entry.Size,
                     module = entry.Module,
                     moduleOffset = entry.ModuleOffset,
                     pointerOffsets = entry.PointerOffsets,
+                    signature = entry.Signature,
                     frozen = entry.Frozen,
                 }).ToArray(),
                 savedAt = DateTime.UtcNow.ToString("o"),
@@ -95,11 +97,13 @@ namespace KillWind.Wpf
         public string address { get; set; }
         public string currentValue { get; set; }
         public string newValue { get; set; }
+        public string originalValue { get; set; }
         public string type { get; set; }
         public int size { get; set; }
         public string module { get; set; }
         public string moduleOffset { get; set; }
         public string pointerOffsets { get; set; }
+        public string signature { get; set; }
         public bool frozen { get; set; }
     }
 }

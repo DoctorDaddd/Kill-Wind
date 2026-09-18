@@ -4,13 +4,15 @@
  * long as it satisfies these method shapes.
  */
 const CONTRACTS = {
-  IProcessBridge: ['listProcesses', 'listRegions', 'read', 'write'],
+  IProcessBridge: ['listProcesses', 'listRegions', 'listModules', 'read', 'write'],
   IProcessService: ['list', 'attach', 'detach', 'ensureAttached', 'regions'],
   IScanProcessService: ['ensureAttached', 'regions'],
   IMemoryReader: ['read'],
   IMemoryWriter: ['write'],
   IInt32Writer: ['writeInt32'],
   IMemoryScanner: ['firstExact', 'nextExact'],
+  IPointerResolver: ['resolve'],
+  ISignatureScanner: ['scan'],
   IFreezeService: ['add', 'remove', 'clear', 'list'],
 };
 
