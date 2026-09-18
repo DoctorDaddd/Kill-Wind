@@ -36,6 +36,12 @@ namespace KillWind.Wpf
             return await CallDataAsync<MemoryRegion[]>("regions", payload);
         }
 
+        public async Task<ModuleInfo[]> ListModulesAsync(int pid)
+        {
+            var payload = new Dictionary<string, object>(); payload["pid"] = pid;
+            return await CallDataAsync<ModuleInfo[]>("modules", payload);
+        }
+
         public async Task<byte[]> ReadAsync(int pid, ulong address, int size)
         {
             var payload = new Dictionary<string, object>(); payload["pid"] = pid; payload["address"] = String.Format("0x{0:X}", address); payload["size"] = size;

@@ -26,6 +26,9 @@ test('native bridge attaches, scans, reads, and writes MemoryTestGame', async (t
     await service.attach(processInfo);
     const regions = await service.regions();
     assert.ok(regions.length > 0);
+    const modules = await bridge.listModules(processInfo.pid);
+    assert.ok(modules.some((item) => item.name.toLowerCase() === 'memorytestgame.exe'));
+    assert.ok(modules.every((item) => /^0x[0-9a-f]+$/i.test(item.baseAddress)));
     const scanner = new Int32Scanner(access, service);
     const session = await scanner.firstExact(12345, { regions, chunkSize: 64 * 1024 });
     assert.ok(session.results.length > 0, 'Gold value should be found');

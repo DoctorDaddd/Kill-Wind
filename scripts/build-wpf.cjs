@@ -28,6 +28,7 @@ const sources = [
   path.join(root, 'Wpf', 'Models.cs'),
   path.join(root, 'Wpf', 'NativeBridgeClient.cs'),
   path.join(root, 'Wpf', 'ProfileStore.cs'),
+  path.join(root, 'Wpf', 'PointerResolver.cs'),
   path.join(root, 'Wpf', 'MemoryScanner.cs'),
   path.join(root, 'Wpf', 'MainWindow.cs'),
   path.join(root, 'Wpf', 'ValueDialog.cs'),

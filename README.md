@@ -17,6 +17,8 @@ Windows-only local editor for offline single-player process inspection. This rep
 - UTF-8 String and hexadecimal Byte Array exact scanning
 - Scan history with undo of the previous filter
 - Dark themed ComboBox, DataGrid, ScrollBar, and internal panel scrolling
+- Module enumeration and basic multi-level pointer resolution (`Module + Offset -> Offset -> ...`)
+- Pointer-backed address entries are persisted in Profiles and re-resolved after reconnect
 - A small `MemoryTestGame.exe` used by integration tests
 
 The primary UI is a native WPF desktop executable. The existing Electron shell remains available as a fallback and for compatibility checks; it is not required by the WPF EXE. Core scanning and native process access remain separate from the UI shell.

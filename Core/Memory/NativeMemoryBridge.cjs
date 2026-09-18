@@ -59,6 +59,10 @@ class NativeMemoryBridge extends EventEmitter {
     return this.call('regions', { pid, ...options });
   }
 
+  async listModules(pid) {
+    return this.call('modules', { pid });
+  }
+
   async read(pid, address, size) {
     const base64 = await this.call('read', { pid, address, size });
     return Buffer.from(base64, 'base64');

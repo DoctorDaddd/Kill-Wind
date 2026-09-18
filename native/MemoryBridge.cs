@@ -56,6 +56,15 @@ public sealed class RegionInfoDto
 }
 
 [DataContract]
+public sealed class ModuleInfoDto
+{
+    [DataMember] public string name;
+    [DataMember] public string path;
+    [DataMember] public string baseAddress;
+    [DataMember] public long size;
+}
+
+[DataContract]
 public sealed class ScreenPointDto
 {
     [DataMember] public int x;
@@ -172,6 +181,7 @@ public static class Program
         {
             case "list": return Success(ListProcesses(request.taskbarOnly));
             case "regions": return Success(ListRegions(request.pid, request.includeExecutable, request.includeMapped));
+            case "modules": return Success(ListModules(request.pid));
             case "read": return Success(Read(request.pid, request.address, request.size));
             case "write": return Success(Write(request.pid, request.address, request.data));
             case "pick": return Success(PickScreenPoint(request.pid, request.size));
@@ -242,6 +252,30 @@ public static class Program
         }
         catch (Exception exception) { Diagnostic("architecture unavailable: " + exception.Message); }
         return Environment.Is64BitOperatingSystem ? "x64" : "x86";
+    }
+
+    private static ModuleInfoDto[] ListModules(int pid)
+    {
+        using (var process = Process.GetProcessById(pid))
+        {
+            var result = new List<ModuleInfoDto>();
+            foreach (ProcessModule module in process.Modules)
+            {
+                try
+                {
+                    result.Add(new ModuleInfoDto
+                    {
+                        name = module.ModuleName,
+                        path = module.FileName,
+                        baseAddress = Hex(module.BaseAddress),
+                        size = module.ModuleMemorySize,
+                    });
+                }
+                catch (Exception exception) { Diagnostic("module unavailable for PID " + pid + ": " + exception.Message); }
+            }
+            result.Sort((a, b) => StringComparer.OrdinalIgnoreCase.Compare(a.name, b.name));
+            return result.ToArray();
+        }
     }
 
     private static void Diagnostic(string message)

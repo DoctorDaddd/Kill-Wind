@@ -26,6 +26,16 @@ namespace KillWind.Wpf
         public ulong Base { get { return Convert.ToUInt64(baseAddress.Substring(2), 16); } }
     }
 
+    public sealed class ModuleInfo
+    {
+        public string name { get; set; }
+        public string path { get; set; }
+        public string baseAddress { get; set; }
+        public long size { get; set; }
+        public ulong Base { get { return Convert.ToUInt64((baseAddress ?? "0x0").Substring(2), 16); } }
+        public string DisplayName { get { return String.Format("{0}  ·  {1}", name, baseAddress); } }
+    }
+
     public enum ScanDataType { Byte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double, String, ByteArray }
     public enum ScanInitialMode { Exact, Unknown }
     public enum ScanCondition { Exact, Changed, Unchanged, Increased, Decreased }
@@ -49,6 +59,9 @@ namespace KillWind.Wpf
         public string NewValue { get; set; }
         public string Type { get; set; }
         public int Size { get; set; }
+        public string Module { get; set; }
+        public string ModuleOffset { get; set; }
+        public string PointerOffsets { get; set; }
         public bool Frozen { get; set; }
         public ulong AddressValue { get { return Convert.ToUInt64(Address.Substring(2), 16); } }
     }

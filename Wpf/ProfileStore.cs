@@ -41,6 +41,9 @@ namespace KillWind.Wpf
                     newValue = entry.NewValue,
                     type = entry.Type,
                     size = entry.Size,
+                    module = entry.Module,
+                    moduleOffset = entry.ModuleOffset,
+                    pointerOffsets = entry.PointerOffsets,
                     frozen = entry.Frozen,
                 }).ToArray(),
                 savedAt = DateTime.UtcNow.ToString("o"),
@@ -94,6 +97,9 @@ namespace KillWind.Wpf
         public string newValue { get; set; }
         public string type { get; set; }
         public int size { get; set; }
+        public string module { get; set; }
+        public string moduleOffset { get; set; }
+        public string pointerOffsets { get; set; }
         public bool frozen { get; set; }
     }
 }
