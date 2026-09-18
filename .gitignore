@@ -1,5 +1,6 @@
 node_modules/
 native/MemoryBridge.exe
+native/ExeIconPatcher.exe
 MemoryTestGame/MemoryTestGame.exe
 Profiles/
 Logs/

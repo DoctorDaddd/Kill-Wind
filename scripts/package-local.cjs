@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 const projectRoot = path.resolve(__dirname, '..');
 const outputRoot = path.resolve(process.env.KILLWIND_OUTPUT || path.join(projectRoot, 'release', 'killwind'));
@@ -15,6 +16,9 @@ if (!fs.existsSync(path.join(runtimeRoot, runtimeExe))) {
 if (!fs.existsSync(path.join(projectRoot, 'native', 'MemoryBridge.exe'))) {
   throw new Error('MemoryBridge.exe 不存在，请先构建原生桥接。');
 }
+if (!fs.existsSync(path.join(projectRoot, 'native', 'ExeIconPatcher.exe'))) {
+  throw new Error('ExeIconPatcher.exe 不存在，请先构建原生工具。');
+}
 
 fs.rmSync(outputRoot, { recursive: true, force: true });
 fs.mkdirSync(appRoot, { recursive: true });
@@ -25,6 +29,12 @@ for (const entry of fs.readdirSync(runtimeRoot, { withFileTypes: true })) {
   if (!entry.isFile() || entry.name === runtimeExe) continue;
   fs.copyFileSync(path.join(runtimeRoot, entry.name), path.join(outputRoot, entry.name));
 }
+
+const iconPatch = spawnSync(path.join(projectRoot, 'native', 'ExeIconPatcher.exe'), [
+  path.join(outputRoot, 'killwind.exe'),
+  path.join(projectRoot, 'assets', 'killwind.ico'),
+], { encoding: 'utf8', windowsHide: true });
+if (iconPatch.status !== 0) throw new Error(`写入 EXE 图标失败：${iconPatch.stdout || ''}${iconPatch.stderr || ''}`);
 
 const copy = (relativePath) => fs.cpSync(path.join(projectRoot, relativePath), path.join(appRoot, relativePath), { recursive: true });
 for (const relativePath of ['package.json', 'main.cjs', 'preload.cjs', 'Core', 'Infrastructure', 'Profiles', 'ui', 'assets']) copy(relativePath);
