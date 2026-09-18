@@ -285,6 +285,12 @@ namespace KillWind.Wpf
         private static ComboBox DarkCombo(IEnumerable<string> items, int selectedIndex)
         {
             var combo = new ComboBox { ItemsSource = items, SelectedIndex = selectedIndex, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush, Padding = new Thickness(5, 0, 5, 0) };
+            combo.Resources[SystemColors.WindowBrushKey] = InputBrush;
+            combo.Resources[SystemColors.WindowTextBrushKey] = TextBrush;
+            combo.Resources[SystemColors.ControlBrushKey] = InputBrush;
+            combo.Resources[SystemColors.ControlTextBrushKey] = TextBrush;
+            combo.Resources[SystemColors.MenuBrushKey] = PanelBrush;
+            combo.Resources[SystemColors.MenuTextBrushKey] = TextBrush;
             combo.Resources[SystemColors.HighlightBrushKey] = BrushFrom("#285F63");
             combo.Resources[SystemColors.HighlightTextBrushKey] = TextBrush;
             var itemStyle = new Style(typeof(ComboBoxItem));
