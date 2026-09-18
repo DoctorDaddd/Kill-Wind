@@ -7,9 +7,13 @@
   "main": "main.cjs",
   "scripts": {
     "build:native": "node scripts/build-native.cjs",
-    "test": "npm run build:native && node --test tests",
-    "start": "npm run build:native && electron .",
-    "package:local": "node scripts/build-native.cjs && node scripts/package-local.cjs"
+    "build:wpf": "node scripts/build-wpf.cjs",
+    "test": "npm run build:native && node --test tests/core.test.cjs tests/native.integration.test.cjs",
+    "start": "npm run build:native && npm run build:wpf && Wpf\\bin\\KillWind.Wpf.exe",
+    "start:electron": "npm run build:native && electron .",
+    "package:local": "npm run package:wpf",
+    "package:wpf": "npm run build:native && npm run build:wpf && node scripts/package-wpf.cjs",
+    "package:electron": "npm run build:native && node scripts/package-local.cjs"
   },
   "devDependencies": {
     "electron": "^44.3.0"

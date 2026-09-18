@@ -11,10 +11,11 @@ Windows-only local editor for offline single-player process inspection. This rep
 - Safe Int32 read/write through a native Windows bridge
 - Freeze service with per-entry intervals
 - Address list and JSON profile persistence
-- Screen Edit Mode: capture the next click in the attached game, scan the entered Int32, and auto-write only when the match is unique
+- WPF native desktop shell with debugger-style layout and local EXE packaging
+- Int32, Float, and Double exact/changed/unchanged/increased/decreased scan filters
 - A small `MemoryTestGame.exe` used by integration tests
 
-The UI is Electron for this first increment because this workspace does not include a .NET SDK. Core logic lives in independent modules and communicates through explicit service classes (`IProcessService`-style contracts in JSDoc) so a WPF/WinUI shell can be introduced later without moving scan logic into the UI.
+The primary UI is a native WPF desktop executable. The existing Electron shell remains available as a fallback and for compatibility checks; it is not required by the WPF EXE. Core scanning and native process access remain separate from the UI shell.
 
 Screen Edit Mode deliberately does not claim OCR. RPG Maker MV/MZ renders text into a canvas, so Windows UI Automation cannot read the clicked number reliably. The MVP captures the screen point, asks for the visible current/new Int32 values, and writes automatically only for a unique process-memory match; ambiguous matches remain in the candidate list for explicit selection.
 
@@ -26,13 +27,16 @@ npm test
 npm start
 ```
 
+`npm start` builds and launches the WPF desktop version. The native build currently uses the Windows .NET Framework C# compiler already present on the build machine, so a full .NET SDK is not required for this local build.
+
 To create a portable Windows folder using the cached project runtime, or Electron downloaded by `npm install`:
 
 ```powershell
 node scripts/build-native.cjs
-node scripts/package-local.cjs
+node scripts/build-wpf.cjs
+node scripts/package-wpf.cjs
 ```
 
-The result is `release/killwind/killwind.exe`. Keep the whole `release/killwind` folder together when moving it to another Windows machine.
+The result is `release/killwind-wpf/KillWind.exe`. Keep the whole `release/killwind-wpf` folder together when moving it to another Windows machine. The Electron fallback can still be packaged with `npm run package:electron`.
 
 `npm run build:native` compiles the small x64 Windows bridge and the test game using the Windows .NET Framework compiler available on the build machine. The bridge uses documented `OpenProcess`, `VirtualQueryEx`, `ReadProcessMemory`, and `WriteProcessMemory` APIs. It is scoped to local process inspection and does not include network, anti-cheat, DRM, or authentication features.

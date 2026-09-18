@@ -1,0 +1,457 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+
+namespace KillWind.Wpf
+{
+    public sealed class MainWindow : Window
+    {
+        private readonly NativeBridgeClient bridge;
+        private readonly MemoryScanner scanner;
+        private readonly ProfileStore profileStore;
+        private readonly ObservableAddressList addresses = new ObservableAddressList();
+        private readonly DispatcherTimer freezeTimer;
+        private readonly DispatcherTimer processWatchTimer;
+        private ComboBox processCombo;
+        private ComboBox typeCombo;
+        private ComboBox conditionCombo;
+        private TextBox scanValue;
+        private TextBox logBox;
+        private DataGrid resultsGrid;
+        private DataGrid regionsGrid;
+        private DataGrid addressesGrid;
+        private ProgressBar progress;
+        private TextBlock statusText;
+        private TextBlock scanCountText;
+        private TextBlock processText;
+        private TextBox profileName;
+        private ComboBox profileCombo;
+        private ProcessInfo[] processes = new ProcessInfo[0];
+        private ProcessInfo attached;
+        private MemoryRegion[] regions = new MemoryRegion[0];
+        private List<ScanResult> scanResults = new List<ScanResult>();
+        private CancellationTokenSource scanCancellation;
+
+        private static readonly Brush WindowBrush = BrushFrom("#111418");
+        private static readonly Brush PanelBrush = BrushFrom("#20262D");
+        private static readonly Brush HeaderBrush = BrushFrom("#2A323A");
+        private static readonly Brush InputBrush = BrushFrom("#14191E");
+        private static readonly Brush LineBrush = BrushFrom("#3A434D");
+        private static readonly Brush TextBrush = BrushFrom("#E4E8EC");
+        private static readonly Brush MutedBrush = BrushFrom("#9DA7B1");
+        private static readonly Brush AccentBrush = BrushFrom("#65C9C5");
+
+        public MainWindow(string helperPath)
+        {
+            bridge = new NativeBridgeClient(helperPath);
+            scanner = new MemoryScanner(bridge);
+            profileStore = new ProfileStore();
+            freezeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            freezeTimer.Tick += FreezeTimerOnTick;
+            processWatchTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            processWatchTimer.Tick += ProcessWatchTimerOnTick;
+            Title = "KillWind";
+            Width = 1380; Height = 900; MinWidth = 1060; MinHeight = 700;
+            WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; Background = WindowBrush;
+            BuildUi();
+            Loaded += async (sender, args) => { await RefreshProcessesAsync(); RefreshProfileList(); processWatchTimer.Start(); };
+            Closed += (sender, args) => { freezeTimer.Stop(); processWatchTimer.Stop(); bridge.Dispose(); };
+        }
+
+        private void BuildUi()
+        {
+            var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(52) });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(102) });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(24) });
+            Content = root;
+
+            root.Children.Add(BuildTitleBar());
+            root.Children.Add(BuildMenuBar());
+            root.Children.Add(BuildToolbar());
+            root.Children.Add(BuildWorkspace());
+            root.Children.Add(BuildLogPanel());
+            root.Children.Add(BuildStatusBar());
+        }
+
+        private UIElement BuildTitleBar()
+        {
+            var title = new Grid { Background = BrushFrom("#1B2025") };
+            title.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+            var mark = new Border { Width = 25, Height = 25, Background = BrushFrom("#183137"), BorderBrush = BrushFrom("#527D7F"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3) };
+            mark.Child = new TextBlock { Text = "K", Foreground = AccentBrush, FontSize = 16, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            brand.Children.Add(mark);
+            brand.Children.Add(new TextBlock { Text = "KillWind  ·  通用离线游戏修改器", Foreground = TextBrush, FontSize = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(9, 0, 0, 0) });
+            title.Children.Add(brand);
+            var controls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            controls.Children.Add(WindowButton("−", () => WindowState = WindowState.Minimized));
+            controls.Children.Add(WindowButton("□", () => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized));
+            controls.Children.Add(WindowButton("×", Close, true));
+            Grid.SetColumn(controls, 1); title.Children.Add(controls);
+            title.MouseLeftButtonDown += (sender, args) => { if (args.ClickCount == 2) WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; else DragMove(); };
+            Grid.SetRow(title, 0); return title;
+        }
+
+        private Button WindowButton(string text, Action action, bool close = false)
+        {
+            var button = new Button { Content = text, Width = 42, Height = 30, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Foreground = close ? BrushFrom("#E17B82") : MutedBrush, FontSize = 16, Padding = new Thickness(0) };
+            button.Click += (sender, args) => action();
+            button.MouseEnter += (sender, args) => button.Background = close ? BrushFrom("#A33E48") : BrushFrom("#303941");
+            button.MouseLeave += (sender, args) => button.Background = Brushes.Transparent;
+            return button;
+        }
+
+        private UIElement BuildMenuBar()
+        {
+            var menu = new Menu { Background = BrushFrom("#171B20"), Foreground = TextBrush, Padding = new Thickness(6, 0, 0, 0) };
+            var file = Menu("文件"); file.Items.Add(MenuCommand("新建扫描", NewScan)); file.Items.Add(AsyncMenuCommand("刷新进程", RefreshProcessesAsync)); file.Items.Add(new Separator()); file.Items.Add(MenuCommand("退出", Close));
+            var edit = Menu("编辑"); edit.Items.Add(MenuCommand("添加选中地址", AddSelectedAddresses)); edit.Items.Add(AsyncMenuCommand("刷新地址数值", RefreshAddressesAsync)); edit.Items.Add(MenuCommand("清空当前扫描", NewScan));
+            var view = Menu("视图"); view.Items.Add(AsyncMenuCommand("刷新内存区域", RefreshRegionsAsync)); view.Items.Add(AsyncMenuCommand("刷新地址列表", RefreshAddressesAsync));
+            var tools = Menu("工具"); tools.Items.Add(MenuCommand("启动测试程序", LaunchTestGame)); tools.Items.Add(AsyncMenuCommand("屏幕取值模式", ScreenEditAsync));
+            var help = Menu("帮助"); help.Items.Add(MenuCommand("关于 KillWind", () => Message("KillWind WPF 原生桌面版\n用于本地离线游戏进程研究。\n当前版本：0.2.0")));
+            menu.Items.Add(file); menu.Items.Add(edit); menu.Items.Add(view); menu.Items.Add(tools); menu.Items.Add(help);
+            Grid.SetRow(menu, 1); return menu;
+        }
+
+        private static MenuItem Menu(string header) { return new MenuItem { Header = header, Padding = new Thickness(10, 2, 10, 2) }; }
+        private static MenuItem MenuCommand(string header, Action action) { var item = new MenuItem { Header = header }; item.Click += (sender, args) => action(); return item; }
+        private static MenuItem AsyncMenuCommand(string header, Func<Task> action) { var item = new MenuItem { Header = header }; item.Click += async (sender, args) => await action(); return item; }
+
+        private UIElement BuildToolbar()
+        {
+            var toolbar = new DockPanel { Background = BrushFrom("#20252A"), LastChildFill = false, Margin = new Thickness(0, 1, 0, 0) };
+            toolbar.Children.Add(ToolButton("刷新", async () => await RefreshProcessesAsync()));
+            toolbar.Children.Add(ToolButton("测试程序", LaunchTestGame));
+            toolbar.Children.Add(new Separator { Width = 12, Opacity = .3 });
+            toolbar.Children.Add(new TextBlock { Text = "目标进程", Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 6, 0) });
+            processCombo = new ComboBox { Width = 390, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush, DisplayMemberPath = "DisplayName", Margin = new Thickness(0, 0, 6, 0) };
+            toolbar.Children.Add(processCombo);
+            toolbar.Children.Add(ToolButton("连接", async () => await AttachAsync(), true));
+            toolbar.Children.Add(ToolButton("断开", Detach, false));
+            toolbar.Children.Add(ToolButton("屏幕取值", async () => await ScreenEditAsync()));
+            toolbar.Children.Add(new Separator { Width = 12, Opacity = .3 });
+            processText = new TextBlock { Text = "未连接目标进程", Foreground = MutedBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            toolbar.Children.Add(processText);
+            Grid.SetRow(toolbar, 2); return toolbar;
+        }
+
+        private Button ToolButton(string text, Action action, bool accent = false)
+        {
+            var button = new Button { Content = text, MinWidth = 68, Height = 30, Margin = new Thickness(3, 0, 0, 0), Padding = new Thickness(8, 0, 8, 0), Background = accent ? BrushFrom("#285F63") : BrushFrom("#303841"), Foreground = TextBrush, BorderBrush = accent ? BrushFrom("#4E9695") : LineBrush };
+            button.Click += (sender, args) => action(); return button;
+        }
+
+        private UIElement BuildWorkspace()
+        {
+            var grid = new Grid { Margin = new Thickness(6, 6, 6, 4) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(385) });
+            grid.Children.Add(BuildLeftColumn()); grid.Children.Add(BuildCenterColumn()); grid.Children.Add(BuildRightColumn());
+            Grid.SetColumn(grid.Children[0], 0); Grid.SetColumn(grid.Children[1], 1); Grid.SetColumn(grid.Children[2], 2); Grid.SetRow(grid, 3); return grid;
+        }
+
+        private UIElement BuildLeftColumn()
+        {
+            var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            var stack = new StackPanel();
+            stack.Children.Add(Panel("进程信息", BuildProcessInfo()));
+            stack.Children.Add(Panel("扫描器", BuildScanner()));
+            stack.Children.Add(Panel("配置", BuildProfileActions()));
+            stack.Children.Add(Panel("地址操作", BuildAddressActions()));
+            scroll.Content = stack; return scroll;
+        }
+
+        private UIElement BuildProfileActions()
+        {
+            var stack = new StackPanel { Margin = new Thickness(8) };
+            profileName = Input("例如：我的 RPG Maker 游戏"); stack.Children.Add(Labelled("配置名称", profileName));
+            profileCombo = new ComboBox { Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("已保存配置", profileCombo));
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(ToolButton("保存配置", SaveProfile, true));
+            row.Children.Add(ToolButton("加载配置", LoadProfile));
+            stack.Children.Add(row);
+            return stack;
+        }
+
+        private UIElement BuildProcessInfo()
+        {
+            var grid = new Grid { Margin = new Thickness(8) }; grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition());
+            for (int i = 0; i < 4; i++) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            AddInfo(grid, "进程", "—", 0, 0); AddInfo(grid, "PID", "—", 1, 0); AddInfo(grid, "架构", "—", 0, 1); AddInfo(grid, "内存", "—", 1, 1); AddInfo(grid, "路径", "—", 0, 2, 2); return grid;
+        }
+
+        private void AddInfo(Grid grid, string label, string value, int column, int row, int span = 1)
+        {
+            var block = new StackPanel { Margin = new Thickness(2, 3, 2, 3) }; block.Children.Add(new TextBlock { Text = label, Foreground = MutedBrush, FontSize = 10 }); block.Children.Add(new TextBlock { Text = value, Foreground = TextBrush, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis });
+            Grid.SetColumn(block, column); Grid.SetRow(block, row); if (span > 1) Grid.SetColumnSpan(block, span); grid.Children.Add(block);
+        }
+
+        private UIElement BuildScanner()
+        {
+            var stack = new StackPanel { Margin = new Thickness(8) };
+            scanValue = Input("输入当前数值"); stack.Children.Add(Labelled("数值", scanValue));
+            typeCombo = new ComboBox { ItemsSource = new[] { "Int32", "Float", "Double" }, SelectedIndex = 0, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("数据类型", typeCombo));
+            conditionCombo = new ComboBox { ItemsSource = new[] { "精确数值", "已改变", "未改变", "增加", "减少" }, SelectedIndex = 0, Height = 29, Foreground = TextBrush, Background = InputBrush, BorderBrush = LineBrush }; stack.Children.Add(Labelled("再次扫描条件", conditionCombo));
+            var row = new StackPanel { Orientation = Orientation.Horizontal }; row.Children.Add(ToolButton("首次扫描", async () => await FirstScanAsync(), true)); row.Children.Add(ToolButton("再次扫描", async () => await NextScanAsync())); stack.Children.Add(row);
+            var row2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) }; row2.Children.Add(ToolButton("新建扫描", NewScan)); row2.Children.Add(ToolButton("取消", CancelScan)); stack.Children.Add(row2);
+            progress = new ProgressBar { Height = 3, Minimum = 0, Maximum = 100, Margin = new Thickness(0, 9, 0, 3), Foreground = AccentBrush }; stack.Children.Add(progress);
+            scanCountText = new TextBlock { Text = "0 个结果", Foreground = MutedBrush }; stack.Children.Add(scanCountText); return stack;
+        }
+
+        private UIElement BuildAddressActions()
+        {
+            var stack = new StackPanel { Margin = new Thickness(8) }; stack.Children.Add(ToolButton("添加选中地址", AddSelectedAddresses, true)); stack.Children.Add(ToolButton("写入选中地址", async () => await WriteSelectedAddressAsync())); stack.Children.Add(ToolButton("刷新地址数值", async () => await RefreshAddressesAsync())); return stack;
+        }
+
+        private UIElement BuildCenterColumn()
+        {
+            var grid = new Grid { Margin = new Thickness(5, 0, 5, 0) }; grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(190) });
+            resultsGrid = CreateGrid(); resultsGrid.SelectionMode = DataGridSelectionMode.Extended; resultsGrid.Columns.Add(Column("地址", "Address", 150)); resultsGrid.Columns.Add(Column("数值", "Value", 110)); resultsGrid.Columns.Add(Column("类型", "Type", 80)); grid.Children.Add(Panel("扫描结果", resultsGrid));
+            regionsGrid = CreateGrid(); regionsGrid.Columns.Add(Column("基址", "baseAddress", 150)); regionsGrid.Columns.Add(Column("大小", "size", 100)); regionsGrid.Columns.Add(Column("保护", "protection", 80)); regionsGrid.Columns.Add(Column("类型", "type", 80)); var regionsPanel = Panel("内存区域", regionsGrid); Grid.SetRow(regionsPanel, 1); grid.Children.Add(regionsPanel);
+            Grid.SetRow(grid, 0); return grid;
+        }
+
+        private UIElement BuildRightColumn()
+        {
+            var grid = new Grid { Margin = new Thickness(0, 0, 0, 0) }; grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(155) });
+            addressesGrid = CreateGrid(); addressesGrid.IsReadOnly = false; addressesGrid.SelectionMode = DataGridSelectionMode.Single; addressesGrid.Columns.Add(Column("描述", "Description", 100)); addressesGrid.Columns.Add(Column("地址", "Address", 130)); addressesGrid.Columns.Add(Column("当前值", "CurrentValue", 80)); addressesGrid.Columns.Add(Column("新值", "NewValue", 80)); addressesGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "冻", Binding = new Binding("Frozen") }); addressesGrid.CellEditEnding += (sender, args) => Dispatcher.BeginInvoke(new Action(UpdateFreezeTimer)); grid.Children.Add(Panel("地址列表", addressesGrid));
+            var help = new StackPanel { Margin = new Thickness(10) }; help.Children.Add(new TextBlock { Text = "操作提示", Foreground = AccentBrush, FontWeight = FontWeights.Bold }); help.Children.Add(new TextBlock { Text = "连接进程 → 输入数值 → 首次扫描\n改变游戏数值 → 选择条件 → 再次扫描\n选中结果后添加到地址列表。", Foreground = MutedBrush, Margin = new Thickness(0, 8, 0, 0) }); var helpPanel = Panel("帮助", help); Grid.SetRow(helpPanel, 1); grid.Children.Add(helpPanel); Grid.SetColumn(grid, 2); return grid;
+        }
+
+        private UIElement BuildLogPanel()
+        {
+            logBox = new TextBox { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = InputBrush, Foreground = MutedBrush, BorderBrush = LineBrush, FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 11, Margin = new Thickness(6, 0, 6, 4) }; Grid.SetRow(logBox, 4); return logBox;
+        }
+
+        private UIElement BuildStatusBar()
+        {
+            var bar = new DockPanel { Background = BrushFrom("#171B20"), LastChildFill = false }; statusText = new TextBlock { Text = "未连接", Foreground = MutedBrush, Margin = new Thickness(10, 3, 0, 0) }; bar.Children.Add(statusText); var right = new TextBlock { Text = "WPF 原生桌面版 · 本地离线工具", Foreground = MutedBrush, Margin = new Thickness(0, 3, 10, 0) }; DockPanel.SetDock(right, Dock.Right); bar.Children.Add(right); Grid.SetRow(bar, 5); return bar;
+        }
+
+        private Border Panel(string title, UIElement content)
+        {
+            var dock = new DockPanel(); var header = new TextBlock { Text = title, Foreground = TextBrush, Background = HeaderBrush, Padding = new Thickness(9, 7, 9, 6), FontWeight = FontWeights.SemiBold }; DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header); dock.Children.Add(content); return new Border { Background = PanelBrush, BorderBrush = LineBrush, BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 5), Child = dock };
+        }
+
+        private static DataGrid CreateGrid() { return new DataGrid { AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = true, HeadersVisibility = DataGridHeadersVisibility.Column, Background = PanelBrush, Foreground = TextBrush, RowBackground = PanelBrush, AlternatingRowBackground = BrushFrom("#1D2329"), GridLinesVisibility = DataGridGridLinesVisibility.Horizontal, HorizontalGridLinesBrush = BrushFrom("#2C343C"), BorderThickness = new Thickness(0), SelectionUnit = DataGridSelectionUnit.FullRow }; }
+        private static DataGridTextColumn Column(string header, string path, double width) { return new DataGridTextColumn { Header = header, Binding = new Binding(path), Width = width }; }
+        private static TextBox Input(string hint) { return new TextBox { Height = 29, Text = "", ToolTip = hint, Background = InputBrush, Foreground = TextBrush, BorderBrush = LineBrush, Padding = new Thickness(7, 4, 7, 4) }; }
+        private static StackPanel Labelled(string label, UIElement input) { var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 7) }; stack.Children.Add(new TextBlock { Text = label, Foreground = MutedBrush, FontSize = 11 }); stack.Children.Add(input); return stack; }
+
+        private async Task RefreshProcessesAsync()
+        {
+            try { processes = await bridge.ListProcessesAsync(true); processCombo.ItemsSource = processes; if (attached != null) processCombo.SelectedItem = processes.FirstOrDefault(item => item.pid == attached.pid); Log("信息", "任务栏进程列表已刷新：" + processes.Length + " 个"); }
+            catch (Exception error) { Log("错误", error.Message); }
+        }
+
+        private async Task AttachAsync()
+        {
+            var selected = processCombo.SelectedItem as ProcessInfo; if (selected == null) { Message("请选择目标进程。"); return; }
+            try { attached = selected; regions = await bridge.ListRegionsAsync(attached.pid); regionsGrid.ItemsSource = regions; processText.Text = "已连接：" + attached.name + "  PID " + attached.pid; statusText.Text = "已连接 · " + attached.name; if (String.IsNullOrWhiteSpace(profileName.Text)) profileName.Text = attached.name.Replace(".exe", ""); UpdateFreezeTimer(); Log("成功", "已连接进程：" + attached.name); }
+            catch (Exception error) { attached = null; Log("错误", error.Message); }
+        }
+
+        private void Detach()
+        {
+            freezeTimer.Stop(); attached = null; regions = new MemoryRegion[0]; regionsGrid.ItemsSource = regions; scanResults.Clear(); resultsGrid.ItemsSource = scanResults; processText.Text = "未连接目标进程"; statusText.Text = "未连接"; Log("信息", "已断开进程");
+        }
+
+        private void ProcessWatchTimerOnTick(object sender, EventArgs args)
+        {
+            if (attached == null) return;
+            try
+            {
+                using (var target = Process.GetProcessById(attached.pid))
+                {
+                    if (!target.HasExited) return;
+                }
+            }
+            catch (Exception error)
+            {
+                Log("警告", "目标进程已不可用：" + error.Message);
+            }
+            HandleProcessClosed();
+        }
+
+        private void HandleProcessClosed()
+        {
+            freezeTimer.Stop();
+            attached = null;
+            regions = new MemoryRegion[0];
+            scanResults = new List<ScanResult>();
+            processCombo.SelectedItem = null;
+            regionsGrid.ItemsSource = regions;
+            resultsGrid.ItemsSource = scanResults;
+            scanCountText.Text = "0 个结果";
+            processText.Text = "目标进程已关闭";
+            statusText.Text = "未连接";
+            Log("警告", "目标进程已关闭，已停止冻结并清空当前扫描。");
+        }
+
+        private async Task RefreshRegionsAsync() { if (attached == null) { Message("请先连接目标进程。"); return; } try { regions = await bridge.ListRegionsAsync(attached.pid); regionsGrid.ItemsSource = regions; Log("信息", "内存区域已刷新：" + regions.Length + " 个"); } catch (Exception error) { Log("错误", error.Message); } }
+
+        private async Task FirstScanAsync()
+        {
+            if (attached == null) { Message("请先连接目标进程。"); return; }
+            await RunScan(async token => await scanner.FirstExactAsync(attached, regions, SelectedType(), scanValue.Text, new Progress<int>(value => progress.Value = value), token), "首次扫描完成");
+        }
+
+        private async Task NextScanAsync()
+        {
+            if (attached == null || scanResults.Count == 0) { Message("请先完成首次扫描。"); return; }
+            await RunScan(async token => await scanner.FilterAsync(attached, scanResults, SelectedType(), (ScanCondition)conditionCombo.SelectedIndex, scanValue.Text, new Progress<int>(value => progress.Value = value), token), "再次扫描完成");
+        }
+
+        private async Task ScreenEditAsync()
+        {
+            if (attached == null) { Message("请先连接 RPG Maker 游戏进程。"); return; }
+            try
+            {
+                statusText.Text = "请在游戏画面中点击数字";
+                Log("信息", "屏幕取值模式已开启，请点击游戏画面中的数字。");
+                ScreenPoint point = await bridge.PickScreenPointAsync(attached.pid, 30000);
+                if (point == null || point.status != "picked") { statusText.Text = "已连接 · " + attached.name; Message("取点已取消或超时。"); return; }
+                var dialog = new ValueDialog(point) { Owner = this };
+                if (dialog.ShowDialog() != true) { statusText.Text = "已连接 · " + attached.name; return; }
+                int current = Int32.Parse(dialog.CurrentValue, CultureInfo.InvariantCulture);
+                int next = Int32.Parse(dialog.NewValue, CultureInfo.InvariantCulture);
+                regions = await bridge.ListRegionsAsync(attached.pid);
+                List<ScanResult> matches = await scanner.FirstExactAsync(attached, regions, ScanDataType.Int32, current.ToString(CultureInfo.InvariantCulture), new Progress<int>(value => progress.Value = value), CancellationToken.None);
+                scanResults = matches;
+                resultsGrid.ItemsSource = scanResults;
+                scanCountText.Text = matches.Count.ToString("N0") + " 个结果";
+                if (matches.Count == 0) { Message("没有找到匹配的数值，请确认点击的数字和当前显示值。"); Log("警告", "屏幕取值没有匹配项。"); return; }
+                if (matches.Count > 1) { Message("找到 " + matches.Count.ToString("N0") + " 个候选地址，已放入扫描结果，请进一步筛选。"); Log("警告", "屏幕取值存在多个匹配项。"); return; }
+                await bridge.WriteAsync(attached.pid, matches[0].AddressValue, BitConverter.GetBytes(next));
+                Log("成功", "屏幕数字已修改：" + current + " → " + next);
+                statusText.Text = "已连接 · 屏幕修改完成";
+            }
+            catch (FormatException) { Message("请输入有效的 Int32 整数。"); }
+            catch (OverflowException) { Message("数值超出 Int32 范围。"); }
+            catch (Exception error) { Log("错误", "屏幕取值失败：" + error.Message); }
+        }
+
+        private async Task RunScan(Func<CancellationToken, Task<List<ScanResult>>> operation, string completedMessage)
+        {
+            try { scanCancellation = new CancellationTokenSource(); statusText.Text = "扫描中"; progress.Value = 0; scanResults = await operation(scanCancellation.Token); resultsGrid.ItemsSource = scanResults; scanCountText.Text = scanResults.Count.ToString("N0") + " 个结果"; statusText.Text = "已连接 · 扫描完成"; Log("成功", completedMessage + "：" + scanResults.Count.ToString("N0") + " 个结果"); }
+            catch (OperationCanceledException) { Log("信息", "扫描已取消"); }
+            catch (Exception error) { Log("错误", error.Message); }
+            finally { scanCancellation = null; progress.Value = 0; }
+        }
+
+        private void CancelScan() { if (scanCancellation != null) scanCancellation.Cancel(); }
+        private void NewScan() { if (scanCancellation != null) scanCancellation.Cancel(); scanResults = new List<ScanResult>(); resultsGrid.ItemsSource = scanResults; scanCountText.Text = "0 个结果"; progress.Value = 0; Log("信息", "已新建扫描"); }
+
+        private void SaveProfile()
+        {
+            if (attached == null) { Message("请先连接目标进程。"); return; }
+            try
+            {
+                string name = String.IsNullOrWhiteSpace(profileName.Text) ? attached.name.Replace(".exe", "") : profileName.Text.Trim();
+                profileStore.Save(name, attached, addresses);
+                RefreshProfileList();
+                profileCombo.SelectedItem = name;
+                Log("成功", "Profile 已保存：" + name);
+            }
+            catch (Exception error) { Log("错误", "Profile 保存失败：" + error.Message); }
+        }
+
+        private void LoadProfile()
+        {
+            string name = profileCombo == null ? "" : profileCombo.SelectedItem as string;
+            if (String.IsNullOrWhiteSpace(name)) { Message("请选择要加载的 Profile。"); return; }
+            try
+            {
+                ProfileRecord record = profileStore.Load(name);
+                addresses.Clear();
+                foreach (ProfileAddress saved in record.addresses)
+                    addresses.Add(new AddressEntry { Description = saved.description, Address = saved.address, CurrentValue = saved.currentValue, NewValue = saved.newValue, Type = saved.type, Frozen = saved.frozen });
+                profileName.Text = record.gameName;
+                addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; UpdateFreezeTimer();
+                Log("成功", "Profile 已加载：" + record.gameName + "，地址 " + addresses.Count + " 项");
+            }
+            catch (Exception error) { Log("错误", "Profile 加载失败：" + error.Message); }
+        }
+
+        private void RefreshProfileList()
+        {
+            if (profileCombo == null) return;
+            try { profileCombo.ItemsSource = profileStore.List(); }
+            catch (Exception error) { Log("警告", "Profile 列表读取失败：" + error.Message); }
+        }
+
+        private void UpdateFreezeTimer()
+        {
+            if (attached != null && addresses.Any(item => item.Frozen)) freezeTimer.Start();
+            else freezeTimer.Stop();
+        }
+        private void AddSelectedAddresses()
+        {
+            foreach (ScanResult result in resultsGrid.SelectedItems)
+                if (!addresses.Any(item => item.Address.Equals(result.Address, StringComparison.OrdinalIgnoreCase))) addresses.Add(new AddressEntry { Description = "未命名", Address = result.Address, CurrentValue = result.Value, NewValue = result.Value, Type = result.Type });
+            addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("信息", "已添加 " + resultsGrid.SelectedItems.Count + " 个地址");
+        }
+
+        private async Task WriteSelectedAddressAsync()
+        {
+            var entry = addressesGrid.SelectedItem as AddressEntry; if (entry == null || attached == null) { Message("请选择地址并连接进程。"); return; }
+            try { await bridge.WriteAsync(attached.pid, entry.AddressValue, Encode(entry.Type, entry.NewValue)); entry.CurrentValue = entry.NewValue; addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("成功", "已写入地址 " + entry.Address); } catch (Exception error) { Log("错误", error.Message); }
+        }
+
+        private async Task RefreshAddressesAsync()
+        {
+            if (attached == null) return;
+            foreach (AddressEntry entry in addresses.ToList())
+            {
+                try
+                {
+                    byte[] data = await bridge.ReadAsync(attached.pid, entry.AddressValue, DataWidth(entry.Type));
+                    entry.CurrentValue = DecodeDisplay(entry.Type, data);
+                }
+                catch (Exception error)
+                {
+                    entry.CurrentValue = "无效";
+                    Log("警告", "读取地址失败：" + error.Message);
+                }
+            }
+            addressesGrid.ItemsSource = null; addressesGrid.ItemsSource = addresses; Log("信息", "地址数值已刷新");
+        }
+
+        private async void FreezeTimerOnTick(object sender, EventArgs args)
+        {
+            if (attached == null) return;
+            foreach (AddressEntry entry in addresses.Where(item => item.Frozen).ToList()) try { await bridge.WriteAsync(attached.pid, entry.AddressValue, Encode(entry.Type, entry.NewValue)); } catch (Exception error) { Log("错误", "冻结写入失败：" + error.Message); }
+        }
+
+        private void LaunchTestGame()
+        {
+            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "MemoryTestGame", "MemoryTestGame.exe"); if (!File.Exists(path)) path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "MemoryTestGame", "MemoryTestGame.exe");
+            try { Process.Start(path); Log("信息", "测试程序已启动"); } catch (Exception error) { Log("错误", error.Message); }
+        }
+
+        private ScanDataType SelectedType() { return (ScanDataType)typeCombo.SelectedIndex; }
+        private static int DataWidth(string type) { return type == "Double" ? 8 : 4; }
+        private static byte[] Encode(string type, string text) { if (type == "Int32") return BitConverter.GetBytes(Int32.Parse(text, CultureInfo.InvariantCulture)); if (type == "Float") return BitConverter.GetBytes(Single.Parse(text, CultureInfo.InvariantCulture)); return BitConverter.GetBytes(Double.Parse(text, CultureInfo.InvariantCulture)); }
+        private static string DecodeDisplay(string type, byte[] bytes) { if (type == "Int32") return BitConverter.ToInt32(bytes, 0).ToString(CultureInfo.InvariantCulture); if (type == "Float") return BitConverter.ToSingle(bytes, 0).ToString("R", CultureInfo.InvariantCulture); return BitConverter.ToDouble(bytes, 0).ToString("R", CultureInfo.InvariantCulture); }
+        private void Log(string level, string message) { if (logBox == null) return; logBox.AppendText(DateTime.Now.ToString("HH:mm:ss") + "  [" + level + "]  " + message + Environment.NewLine); logBox.ScrollToEnd(); }
+        private void Message(string message) { MessageBox.Show(this, message, "KillWind", MessageBoxButton.OK, MessageBoxImage.Information); }
+        private static SolidColorBrush BrushFrom(string value) { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(value)); }
+    }
+
+    internal sealed class ObservableAddressList : System.Collections.ObjectModel.ObservableCollection<AddressEntry> { }
+}
