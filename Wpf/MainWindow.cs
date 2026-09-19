@@ -154,6 +154,28 @@ namespace KillWind.Wpf
         private UIElement BuildMenuBar()
         {
             var menu = new Menu { Background = BrushFrom("#171B20"), Foreground = TextBrush, Padding = new Thickness(6, 0, 0, 0) };
+            menu.Resources[SystemColors.WindowBrushKey] = PanelBrush;
+            menu.Resources[SystemColors.WindowTextBrushKey] = TextBrush;
+            menu.Resources[SystemColors.MenuBrushKey] = PanelBrush;
+            menu.Resources[SystemColors.MenuTextBrushKey] = TextBrush;
+            menu.Resources[SystemColors.ControlBrushKey] = PanelBrush;
+            menu.Resources[SystemColors.ControlTextBrushKey] = TextBrush;
+            menu.Resources[SystemColors.HighlightBrushKey] = BrushFrom("#285F63");
+            menu.Resources[SystemColors.HighlightTextBrushKey] = Brushes.White;
+            var menuItemStyle = new Style(typeof(MenuItem));
+            menuItemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+            menuItemStyle.Setters.Add(new Setter(Control.ForegroundProperty, TextBrush));
+            menuItemStyle.Setters.Add(new Setter(Control.BorderBrushProperty, Brushes.Transparent));
+            menuItemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 4, 10, 4)));
+            menuItemStyle.Resources[SystemColors.MenuBrushKey] = PanelBrush;
+            menuItemStyle.Resources[SystemColors.MenuTextBrushKey] = TextBrush;
+            menuItemStyle.Resources[SystemColors.HighlightBrushKey] = BrushFrom("#285F63");
+            menuItemStyle.Resources[SystemColors.HighlightTextBrushKey] = Brushes.White;
+            var menuHighlight = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
+            menuHighlight.Setters.Add(new Setter(Control.BackgroundProperty, BrushFrom("#285F63")));
+            menuHighlight.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
+            menuItemStyle.Triggers.Add(menuHighlight);
+            menu.Resources.Add(typeof(MenuItem), menuItemStyle);
             var file = Menu("文件"); file.Items.Add(MenuCommand("新建扫描", NewScan)); file.Items.Add(AsyncMenuCommand("刷新进程", RefreshProcessesAsync)); file.Items.Add(new Separator()); file.Items.Add(MenuCommand("退出", Close));
             var edit = Menu("编辑"); edit.Items.Add(MenuCommand("添加选中地址", AddSelectedAddresses)); edit.Items.Add(AsyncMenuCommand("刷新地址数值", RefreshAddressesMenuAsync)); edit.Items.Add(MenuCommand("清空当前扫描", NewScan));
             var view = Menu("视图"); view.Items.Add(AsyncMenuCommand("刷新内存区域", RefreshRegionsAsync)); view.Items.Add(AsyncMenuCommand("刷新地址列表", RefreshAddressesMenuAsync)); view.Items.Add(MenuCommand("Memory Viewer / Dissect", OpenMemoryViewer));
