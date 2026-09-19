@@ -803,28 +803,91 @@ namespace KillWind.Wpf
             try
             {
                 statusText.Text = "请在游戏画面中点击数字";
-                Log("信息", "屏幕取值模式已开启，请点击游戏画面中的数字。");
+                Log("信息", "屏幕取值模式已开启，请点击游戏画面中的数字。将自动识别当前值。");
                 ScreenPoint point = await bridge.PickScreenPointAsync(attached.pid, 30000);
                 if (point == null || point.status != "picked") { statusText.Text = "已连接 · " + attached.name; Message("取点已取消或超时。"); return; }
-                var dialog = new ValueDialog(point) { Owner = this };
+                statusText.Text = "正在识别屏幕数字";
+                ScreenOcrResult recognition = await ScreenOcr.RecognizeAtPointAsync(point);
+                if (!recognition.Success)
+                {
+                    statusText.Text = "已连接 · " + attached.name;
+                    Log("警告", "屏幕数字识别失败：" + recognition.Error);
+                    Message("自动识别失败：" + recognition.Error + "\n请把鼠标准确放在数字上再重试。");
+                    return;
+                }
+                Log("成功", "屏幕数字已识别为 " + recognition.Value.ToString(CultureInfo.InvariantCulture));
+                var dialog = new ValueDialog(point, recognition.Value, recognition.Text) { Owner = this };
                 if (dialog.ShowDialog() != true) { statusText.Text = "已连接 · " + attached.name; return; }
                 int current = Int32.Parse(dialog.CurrentValue, CultureInfo.InvariantCulture);
                 int next = Int32.Parse(dialog.NewValue, CultureInfo.InvariantCulture);
+                if (current == next) { Message("目标值与当前值相同，无需修改。"); return; }
                 regions = await bridge.ListRegionsAsync(attached.pid);
-                List<ScanResult> matches = await scanner.FirstExactAsync(attached, regions, ScanDataType.Int32, current.ToString(CultureInfo.InvariantCulture), new Progress<int>(value => progress.Value = value), CancellationToken.None);
+                MemoryRegion[] writableRegions = regions.Where(region => region.writable).ToArray();
+                IList<MemoryRegion> scanRegions = writableRegions.Length == 0 ? regions : writableRegions;
+                List<ScanResult> matches = await scanner.FirstExactAsync(attached, scanRegions, ScanDataType.Int32, current.ToString(CultureInfo.InvariantCulture), new Progress<int>(value => progress.Value = value), CancellationToken.None);
                 scanResults = matches;
                 scanHistory.Clear(); scanHistory.Add(scanResults);
                 resultsGrid.ItemsSource = scanResults;
                 scanCountText.Text = matches.Count.ToString("N0") + " 个结果";
                 if (matches.Count == 0) { Message("没有找到匹配的数值，请确认点击的数字和当前显示值。"); Log("警告", "屏幕取值没有匹配项。"); return; }
-                if (matches.Count > 1) { Message("找到 " + matches.Count.ToString("N0") + " 个候选地址，已放入扫描结果，请进一步筛选。"); Log("警告", "屏幕取值存在多个匹配项。"); return; }
-                await bridge.WriteAsync(attached.pid, matches[0].AddressValue, BitConverter.GetBytes(next));
-                Log("成功", "屏幕数字已修改：" + current + " → " + next);
+                ScanResult selected = matches.Count == 1 ? matches[0] : await FindScreenCandidateAsync(matches, point, next);
+                if (selected == null)
+                {
+                    Message(matches.Count > 128 ? "候选地址超过自动验证上限，已保留在扫描结果中。请缩小游戏窗口附近的数字范围后重试。" : "没有找到能让画面变成目标值的唯一地址，已保留候选结果。");
+                    Log("警告", "屏幕取值未能自动确认唯一地址，候选数：" + matches.Count.ToString("N0"));
+                    return;
+                }
+                if (!await bridge.WriteAsync(attached.pid, selected.AddressValue, BitConverter.GetBytes(next))) throw new InvalidOperationException("目标地址写入失败。");
+                selected.Value = next.ToString(CultureInfo.InvariantCulture);
+                Log("成功", "屏幕数字已自动定位并修改：" + current + " → " + next + "，地址 " + selected.Address);
                 statusText.Text = "已连接 · 屏幕修改完成";
             }
             catch (FormatException) { Message("请输入有效的 Int32 整数。"); }
             catch (OverflowException) { Message("数值超出 Int32 范围。"); }
             catch (Exception error) { Log("错误", "屏幕取值失败：" + error.Message); }
+        }
+
+        private async Task<ScanResult> FindScreenCandidateAsync(IList<ScanResult> matches, ScreenPoint point, int target)
+        {
+            int limit = Math.Min(128, matches.Count);
+            byte[] replacement = BitConverter.GetBytes(target);
+            for (int index = 0; index < limit; index++)
+            {
+                ScanResult candidate = matches[index];
+                statusText.Text = "自动验证候选 " + (index + 1).ToString(CultureInfo.InvariantCulture) + " / " + limit.ToString(CultureInfo.InvariantCulture);
+                progress.Value = (index + 1) * 100 / limit;
+                byte[] original = candidate.RawValue;
+                try
+                {
+                    if (original == null || original.Length != replacement.Length) original = await bridge.ReadAsync(attached.pid, candidate.AddressValue, replacement.Length);
+                    if (!await bridge.WriteAsync(attached.pid, candidate.AddressValue, replacement)) continue;
+                    bool visible = false;
+                    for (int retry = 0; retry < 3; retry++)
+                    {
+                        await Task.Delay(80);
+                        ScreenOcrResult check = await ScreenOcr.RecognizeAtPointAsync(point);
+                        if (check.Success && check.Value == target) { visible = true; break; }
+                    }
+                    if (!await bridge.WriteAsync(attached.pid, candidate.AddressValue, original))
+                    {
+                        Log("错误", "候选地址恢复失败 " + candidate.Address + "，已停止自动验证。");
+                        return null;
+                    }
+                    if (visible) return candidate;
+                }
+                catch (Exception error)
+                {
+                    Log("调试", "候选地址验证失败 " + candidate.Address + "：" + error.Message);
+                    try
+                    {
+                        if (original != null && !bridge.WriteAsync(attached.pid, candidate.AddressValue, original).GetAwaiter().GetResult())
+                            Log("错误", "候选地址恢复失败 " + candidate.Address + "。");
+                    }
+                    catch (Exception restoreError) { Log("错误", "候选地址恢复失败 " + candidate.Address + "：" + restoreError.Message); }
+                }
+            }
+            progress.Value = 0;
+            return null;
         }
 
         private async Task RunScan(Func<CancellationToken, Task<List<ScanResult>>> operation, string completedMessage, bool resetHistory)

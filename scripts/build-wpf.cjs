@@ -18,11 +18,19 @@ const wpf = path.join(framework, 'WPF');
 const references = [
   path.join(framework, 'System.dll'),
   path.join(framework, 'System.Core.dll'),
+  path.join(framework, 'System.Runtime.dll'),
+  path.join(framework, 'System.Runtime.WindowsRuntime.dll'),
+  path.join(framework, 'System.Runtime.InteropServices.WindowsRuntime.dll'),
+  path.join(framework, 'System.Drawing.dll'),
   path.join(framework, 'System.Web.Extensions.dll'),
   path.join(framework, 'System.Xaml.dll'),
   path.join(wpf, 'PresentationCore.dll'),
   path.join(wpf, 'PresentationFramework.dll'),
   path.join(wpf, 'WindowsBase.dll'),
+  'C:\\Windows\\System32\\WinMetadata\\Windows.Foundation.winmd',
+  'C:\\Windows\\System32\\WinMetadata\\Windows.Graphics.winmd',
+  'C:\\Windows\\System32\\WinMetadata\\Windows.Media.winmd',
+  'C:\\Windows\\System32\\WinMetadata\\Windows.Storage.winmd',
 ];
 const sources = [
   path.join(root, 'Wpf', 'Models.cs'),
@@ -34,6 +42,7 @@ const sources = [
   path.join(root, 'Wpf', 'GlobalHotkeyService.cs'),
   path.join(root, 'Wpf', 'MemoryScanner.cs'),
   path.join(root, 'Wpf', 'MainWindow.cs'),
+  path.join(root, 'Wpf', 'ScreenOcr.cs'),
   path.join(root, 'Wpf', 'ValueDialog.cs'),
   path.join(root, 'Wpf', 'Program.cs'),
 ];
