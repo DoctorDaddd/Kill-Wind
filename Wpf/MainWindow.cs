@@ -167,6 +167,7 @@ namespace KillWind.Wpf
             menuItemStyle.Setters.Add(new Setter(Control.ForegroundProperty, TextBrush));
             menuItemStyle.Setters.Add(new Setter(Control.BorderBrushProperty, Brushes.Transparent));
             menuItemStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 4, 10, 4)));
+            menuItemStyle.Setters.Add(new Setter(Control.TemplateProperty, DarkMenuItemTemplate()));
             menuItemStyle.Resources[SystemColors.MenuBrushKey] = PanelBrush;
             menuItemStyle.Resources[SystemColors.MenuTextBrushKey] = TextBrush;
             menuItemStyle.Resources[SystemColors.HighlightBrushKey] = BrushFrom("#285F63");
@@ -176,6 +177,12 @@ namespace KillWind.Wpf
             menuHighlight.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
             menuItemStyle.Triggers.Add(menuHighlight);
             menu.Resources.Add(typeof(MenuItem), menuItemStyle);
+            var separatorStyle = new Style(typeof(Separator));
+            separatorStyle.Setters.Add(new Setter(Control.BackgroundProperty, LineBrush));
+            separatorStyle.Setters.Add(new Setter(Control.BorderBrushProperty, LineBrush));
+            separatorStyle.Setters.Add(new Setter(FrameworkElement.HeightProperty, 1.0));
+            separatorStyle.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(5, 3, 5, 3)));
+            menu.Resources.Add(typeof(Separator), separatorStyle);
             var file = Menu("文件"); file.Items.Add(MenuCommand("新建扫描", NewScan)); file.Items.Add(AsyncMenuCommand("刷新进程", RefreshProcessesAsync)); file.Items.Add(new Separator()); file.Items.Add(MenuCommand("退出", Close));
             var edit = Menu("编辑"); edit.Items.Add(MenuCommand("添加选中地址", AddSelectedAddresses)); edit.Items.Add(AsyncMenuCommand("刷新地址数值", RefreshAddressesMenuAsync)); edit.Items.Add(MenuCommand("清空当前扫描", NewScan));
             var view = Menu("视图"); view.Items.Add(AsyncMenuCommand("刷新内存区域", RefreshRegionsAsync)); view.Items.Add(AsyncMenuCommand("刷新地址列表", RefreshAddressesMenuAsync)); view.Items.Add(MenuCommand("Memory Viewer / Dissect", OpenMemoryViewer));
@@ -462,6 +469,34 @@ namespace KillWind.Wpf
             border.AppendChild(content);
             template.VisualTree = border;
             return template;
+        }
+
+        private static ControlTemplate DarkMenuItemTemplate()
+        {
+            const string xaml = @"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='{x:Type MenuItem}'>
+  <Grid SnapsToDevicePixels='True'>
+    <Border x:Name='Root' Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>
+      <ContentPresenter ContentSource='Header' ContentStringFormat='{TemplateBinding HeaderStringFormat}' Margin='10,4,10,4' RecognizesAccessKey='True' TextElement.Foreground='{TemplateBinding Foreground}'/>
+    </Border>
+    <Popup x:Name='PART_Popup' AllowsTransparency='True' Focusable='False' IsOpen='{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}' Placement='Bottom' StaysOpen='True'>
+      <Border Background='#20262D' BorderBrush='#3A434D' BorderThickness='1' Padding='3'>
+        <ScrollViewer CanContentScroll='True' MaxHeight='420' VerticalScrollBarVisibility='Auto' HorizontalScrollBarVisibility='Disabled'>
+          <ItemsPresenter KeyboardNavigation.DirectionalNavigation='Cycle'/>
+        </ScrollViewer>
+      </Border>
+    </Popup>
+  </Grid>
+  <ControlTemplate.Triggers>
+    <Trigger Property='IsHighlighted' Value='True'>
+      <Setter TargetName='Root' Property='Background' Value='#285F63'/>
+      <Setter TargetName='Root' Property='TextElement.Foreground' Value='White'/>
+    </Trigger>
+    <Trigger Property='Role' Value='SubmenuItem'>
+      <Setter TargetName='PART_Popup' Property='Placement' Value='Right'/>
+    </Trigger>
+  </ControlTemplate.Triggers>
+</ControlTemplate>";
+            return (ControlTemplate)XamlReader.Parse(xaml);
         }
 
         private static Binding TemplateBinding(string path)
