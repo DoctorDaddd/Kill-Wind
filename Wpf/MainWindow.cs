@@ -85,10 +85,9 @@ namespace KillWind.Wpf
             Title = "KillWind";
             Width = 1380; Height = 900; MinWidth = 1060; MinHeight = 700;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            WindowState = WindowState.Maximized;
             WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; Background = WindowBrush;
             BuildUi();
-            Loaded += async (sender, args) => { hotkeys.RegisterDefaults(); WindowState = WindowState.Maximized; Activate(); await RefreshProcessesAsync(); RefreshProfileList(); processWatchTimer.Start(); };
+            Loaded += async (sender, args) => { hotkeys.RegisterDefaults(); Activate(); await RefreshProcessesAsync(); RefreshProfileList(); processWatchTimer.Start(); };
             Closed += (sender, args) => { freezeTimer.Stop(); processWatchTimer.Stop(); watchTimer.Stop(); hotkeys.Dispose(); bridge.Dispose(); };
         }
 
