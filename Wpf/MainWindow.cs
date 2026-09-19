@@ -15,6 +15,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Shell;
 using System.Windows.Threading;
 
 namespace KillWind.Wpf
@@ -86,6 +87,7 @@ namespace KillWind.Wpf
             Width = 1380; Height = 900; MinWidth = 1060; MinHeight = 700;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; Background = WindowBrush;
+            WindowChrome.SetWindowChrome(this, new WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(6), GlassFrameThickness = new Thickness(0), CornerRadius = new CornerRadius(0), UseAeroCaptionButtons = false });
             BuildUi();
             Loaded += async (sender, args) => { hotkeys.RegisterDefaults(); Activate(); await RefreshProcessesAsync(); RefreshProfileList(); processWatchTimer.Start(); };
             Closed += (sender, args) => { freezeTimer.Stop(); processWatchTimer.Stop(); watchTimer.Stop(); hotkeys.Dispose(); bridge.Dispose(); };
