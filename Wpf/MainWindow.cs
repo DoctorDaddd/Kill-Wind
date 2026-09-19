@@ -88,7 +88,7 @@ namespace KillWind.Wpf
             WindowState = WindowState.Maximized;
             WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; Background = WindowBrush;
             BuildUi();
-            Loaded += async (sender, args) => { hotkeys.RegisterDefaults(); await RefreshProcessesAsync(); RefreshProfileList(); processWatchTimer.Start(); };
+            Loaded += async (sender, args) => { hotkeys.RegisterDefaults(); WindowState = WindowState.Maximized; Activate(); await RefreshProcessesAsync(); RefreshProfileList(); processWatchTimer.Start(); };
             Closed += (sender, args) => { freezeTimer.Stop(); processWatchTimer.Stop(); watchTimer.Stop(); hotkeys.Dispose(); bridge.Dispose(); };
         }
 
