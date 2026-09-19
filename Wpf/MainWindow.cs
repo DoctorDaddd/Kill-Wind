@@ -13,6 +13,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -501,41 +502,28 @@ namespace KillWind.Wpf
 
         private static ControlTemplate DarkScrollBarTemplate()
         {
-            var template = new ControlTemplate(typeof(ScrollBar));
-            var border = new FrameworkElementFactory(typeof(Border));
-            border.SetValue(Border.BackgroundProperty, BrushFrom("#171D23"));
-            border.SetValue(Border.BorderBrushProperty, BrushFrom("#2D3943"));
-            border.SetValue(Border.BorderThicknessProperty, new Thickness(1));
-            var track = new FrameworkElementFactory(typeof(Track));
-            track.Name = "PART_Track";
-            track.SetBinding(Track.OrientationProperty, TemplateBinding("Orientation"));
-            track.SetBinding(Track.MaximumProperty, TemplateBinding("Maximum"));
-            track.SetBinding(Track.MinimumProperty, TemplateBinding("Minimum"));
-            track.SetBinding(Track.ValueProperty, TemplateBinding("Value"));
-            track.SetBinding(Track.ViewportSizeProperty, TemplateBinding("ViewportSize"));
-            var decrease = new FrameworkElementFactory(typeof(RepeatButton));
-            decrease.SetValue(RepeatButton.CommandProperty, ScrollBar.LineUpCommand);
-            decrease.SetValue(FrameworkElement.HeightProperty, 0.0);
-            decrease.SetValue(FrameworkElement.WidthProperty, 0.0);
-            decrease.SetValue(Control.BackgroundProperty, Brushes.Transparent);
-            var thumb = new FrameworkElementFactory(typeof(Thumb));
-            thumb.SetValue(Control.BackgroundProperty, BrushFrom("#566673"));
-            thumb.SetValue(Control.BorderBrushProperty, BrushFrom("#6B7D8B"));
-            thumb.SetValue(Control.BorderThicknessProperty, new Thickness(1));
-            thumb.SetValue(FrameworkElement.MinHeightProperty, 28.0);
-            thumb.SetValue(FrameworkElement.MinWidthProperty, 28.0);
-            thumb.SetValue(Control.TemplateProperty, DarkThumbTemplate());
-            var increase = new FrameworkElementFactory(typeof(RepeatButton));
-            increase.SetValue(RepeatButton.CommandProperty, ScrollBar.LineDownCommand);
-            increase.SetValue(FrameworkElement.HeightProperty, 0.0);
-            increase.SetValue(FrameworkElement.WidthProperty, 0.0);
-            increase.SetValue(Control.BackgroundProperty, Brushes.Transparent);
-            track.AppendChild(decrease);
-            track.AppendChild(thumb);
-            track.AppendChild(increase);
-            border.AppendChild(track);
-            template.VisualTree = border;
-            return template;
+            const string xaml = @"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='{x:Type ScrollBar}'>
+  <Border Background='#171D23' BorderBrush='#2D3943' BorderThickness='1'>
+    <Track x:Name='PART_Track' Orientation='{TemplateBinding Orientation}' Maximum='{TemplateBinding Maximum}' Minimum='{TemplateBinding Minimum}' Value='{TemplateBinding Value}' ViewportSize='{TemplateBinding ViewportSize}' IsDirectionReversed='True'>
+      <Track.DecreaseRepeatButton>
+        <RepeatButton Command='{x:Static ScrollBar.LineUpCommand}' Background='Transparent' BorderThickness='0' Height='0' Width='0' MinHeight='0' MinWidth='0'/>
+      </Track.DecreaseRepeatButton>
+      <Track.Thumb>
+        <Thumb Background='#566673' BorderBrush='#6B7D8B' BorderThickness='1' MinHeight='28' MinWidth='28'>
+          <Thumb.Template>
+            <ControlTemplate TargetType='{x:Type Thumb}'>
+              <Border Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}' CornerRadius='3'/>
+            </ControlTemplate>
+          </Thumb.Template>
+        </Thumb>
+      </Track.Thumb>
+      <Track.IncreaseRepeatButton>
+        <RepeatButton Command='{x:Static ScrollBar.LineDownCommand}' Background='Transparent' BorderThickness='0' Height='0' Width='0' MinHeight='0' MinWidth='0'/>
+      </Track.IncreaseRepeatButton>
+    </Track>
+  </Border>
+</ControlTemplate>";
+            return (ControlTemplate)XamlReader.Parse(xaml);
         }
 
         private static ControlTemplate DarkThumbTemplate()
